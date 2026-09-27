@@ -1,0 +1,16 @@
+<Project>
+
+  <Import Project="../Directory.Build.props" />
+
+  <PropertyGroup>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)../assets/branding/niddy.ico</ApplicationIcon>
+    <PackageIcon>niddy-package-icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(ApplicationIcon)" Link="Assets/niddy.ico" />
+    <None Include="$(MSBuildThisFileDirectory)../assets/branding/niddy-package-icon.png"
+          Link="Assets/niddy-package-icon.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

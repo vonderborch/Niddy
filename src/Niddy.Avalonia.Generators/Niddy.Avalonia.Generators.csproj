@@ -32,7 +32,7 @@
 
     <Target Name="SetNuspecProperties" BeforeTargets="GenerateNuspec">
         <PropertyGroup>
-            <NuspecProperties>id=$(PackageId);version=$(PackageVersion);authors=$(Authors);description=$(Description);copyright=$(Copyright);license=$(PackageLicenseExpression);projectUrl=$(PackageProjectUrl);repositoryUrl=$(RepositoryUrl);tags=$(PackageTags.Replace(';', ' '));generatorPath=$(ProjectDir)$(OutputPath)$(AssemblyName).dll;readmePath=$(MSBuildThisFileDirectory)../../README.md</NuspecProperties>
+            <NuspecProperties>id=$(PackageId);version=$(PackageVersion);authors=$(Authors);description=$(Description);copyright=$(Copyright);license=$(PackageLicenseExpression);projectUrl=$(PackageProjectUrl);repositoryUrl=$(RepositoryUrl);tags=$(PackageTags.Replace(';', ' '));generatorPath=$(ProjectDir)$(OutputPath)$(AssemblyName).dll;readmePath=$(MSBuildThisFileDirectory)../../README.md;iconPath=$(MSBuildThisFileDirectory)../../assets/branding/niddy-package-icon.png</NuspecProperties>
         </PropertyGroup>
     </Target>
 

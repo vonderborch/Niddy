@@ -15,6 +15,7 @@
     <projectUrl>$projectUrl$</projectUrl>
     <repository type="git" url="$repositoryUrl$" />
     <readme>README.md</readme>
+    <icon>niddy-package-icon.png</icon>
     <tags>$tags$</tags>
     <dependencies>
       <group targetFramework="net10.0">
@@ -25,5 +26,6 @@
   <files>
     <file src="$generatorPath$" target="analyzers/dotnet/cs" />
     <file src="$readmePath$" target="" />
+    <file src="$iconPath$" target="" />
   </files>
 </package>

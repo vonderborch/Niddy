@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/vonderborch/Niddy/main/assets/branding/niddy-package-icon.png" alt="Niddy logo" width="160" height="160" />
+</p>
+
 # Niddy
 
 > **This is my personal utility library.** It's public in case it's useful to someone, but it's built for my own projects first: APIs may change between versions, and issues or PRs may not get a response. Use it, fork it, or borrow from it freely (MIT).

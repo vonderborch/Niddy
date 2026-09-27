@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/assets/" />
+  <Folder Name="/assets/branding/">
+    <File Path="assets\branding\niddy-logo.png" />
+    <File Path="assets\branding\niddy-package-icon.png" />
+    <File Path="assets\branding\niddy.ico" />
+  </Folder>
   <Folder Name="/docs/">
     <File Path="docs\AI-GUIDE.md" />
     <File Path="docs\README.md" />
