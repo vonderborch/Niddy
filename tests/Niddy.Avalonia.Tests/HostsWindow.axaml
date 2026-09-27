@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dialogs="clr-namespace:Niddy.Avalonia.Dialogs;assembly=Niddy.Avalonia"
+        xmlns:toast="clr-namespace:Niddy.Avalonia.Toast;assembly=Niddy.Avalonia"
+        x:Class="Niddy.Avalonia.Tests.HostsWindow">
+    <dialogs:DialogOverlayHost Name="Dialogs">
+        <toast:ToastHost Name="Toasts">
+            <TextBlock Name="Inner" Text="hello" />
+        </toast:ToastHost>
+    </dialogs:DialogOverlayHost>
+</Window>

@@ -1,0 +1,16 @@
+<dialogs:DialogLayout xmlns="https://github.com/avaloniaui"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                      xmlns:dialogs="clr-namespace:Niddy.Avalonia.Dialogs"
+                      mc:Ignorable="d" d:DesignWidth="800"
+                      x:Class="Niddy.Avalonia.Dialogs.WebDialog"
+                      x:ClassModifier="internal">
+
+    <Panel Name="PanelWebHost" MinHeight="200" />
+
+    <dialogs:DialogLayout.Buttons>
+        <Button Name="ButtonOpenInBrowser" Click="ButtonOpenInBrowser_OnClick" />
+        <Button Name="ButtonClose" Click="ButtonClose_OnClick" IsDefault="True" />
+    </dialogs:DialogLayout.Buttons>
+</dialogs:DialogLayout>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+      <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="../../src/Niddy.Avalonia/Niddy.Avalonia.csproj" />
+      <ProjectReference Include="../../src/Niddy.Avalonia.Generators/Niddy.Avalonia.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+      <ProjectReference Include="../Fixtures/Niddy.TestFixtures.ExternalPages/Niddy.TestFixtures.ExternalPages.csproj" />
+      <!-- Built but not referenced: the tests load it at runtime, like a plugin. -->
+      <ProjectReference Include="../Fixtures/Niddy.TestFixtures.PluginPages/Niddy.TestFixtures.PluginPages.csproj" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AssemblyMetadata Include="PluginPagesPath" Value="$(MSBuildThisFileDirectory)../Fixtures/Niddy.TestFixtures.PluginPages/bin/$(Configuration)/$(TargetFramework)/Niddy.TestFixtures.PluginPages.dll" />
+    </ItemGroup>
+
+</Project>

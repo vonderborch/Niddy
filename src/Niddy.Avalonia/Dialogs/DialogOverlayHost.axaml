@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Niddy.Avalonia.Dialogs.DialogOverlayHost">
+
+    <Panel>
+        <ContentPresenter Name="HostContent" />
+        <Panel Name="OverlayPanel" IsVisible="False">
+            <Rectangle Fill="Black" Opacity="0.5" IsHitTestVisible="True" />
+            <!-- Margin is kept clear of safe-area insets and the on-screen keyboard in code-behind. -->
+            <Border Name="DialogCard"
+                    Margin="16"
+                    MinWidth="300"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource SystemColorWindowColor}"
+                    CornerRadius="4"
+                    BoxShadow="0 8 24 0 #60000000">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <ContentPresenter Name="DialogPresenter" Padding="20" />
+                </ScrollViewer>
+            </Border>
+        </Panel>
+    </Panel>
+</UserControl>

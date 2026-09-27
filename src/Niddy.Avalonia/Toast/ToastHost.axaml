@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Niddy.Avalonia.Toast.ToastHost">
+
+    <Panel>
+        <ContentPresenter Name="HostContent" />
+        <!-- Alignment follows Placement, and Margin is kept clear of safe-area insets and the
+             on-screen keyboard, in code-behind. -->
+        <ItemsControl Name="ToastList"
+                      VerticalAlignment="Bottom"
+                      HorizontalAlignment="Right"
+                      Margin="16"
+                      IsHitTestVisible="True">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+    </Panel>
+
+</UserControl>

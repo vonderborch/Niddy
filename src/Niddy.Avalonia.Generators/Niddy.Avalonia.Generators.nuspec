@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A nuspec rather than project metadata so the package can depend on Niddy.Avalonia: the generator targets
+  netstandard2.0 and can't reference the net10.0 library, but the code it generates needs it. Values come from
+  NuspecProperties in the project file, so Directory.Build.props stays the single source of metadata.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <authors>$authors$</authors>
+    <description>$description$</description>
+    <copyright>$copyright$</copyright>
+    <license type="expression">$license$</license>
+    <projectUrl>$projectUrl$</projectUrl>
+    <repository type="git" url="$repositoryUrl$" />
+    <readme>README.md</readme>
+    <tags>$tags$</tags>
+    <dependencies>
+      <group targetFramework="net10.0">
+        <dependency id="Niddy.Avalonia" version="$version$" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="$generatorPath$" target="analyzers/dotnet/cs" />
+    <file src="$readmePath$" target="" />
+  </files>
+</package>

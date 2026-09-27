@@ -1,0 +1,20 @@
+<dialogs:DialogLayout xmlns="https://github.com/avaloniaui"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                      xmlns:dialogs="clr-namespace:Niddy.Avalonia.Dialogs"
+                      mc:Ignorable="d" d:DesignWidth="400"
+                      x:Class="Niddy.Avalonia.Dialogs.ExceptionDialog"
+                      x:ClassModifier="internal">
+
+    <ScrollViewer MaxHeight="240" HorizontalScrollBarVisibility="Disabled">
+        <SelectableTextBlock Name="TextBlockExceptionDetails" FontSize="12" TextWrapping="Wrap" />
+    </ScrollViewer>
+
+    <dialogs:DialogLayout.Buttons>
+        <Button Name="ButtonCopyDetails" Click="ButtonCopyDetails_OnClick" />
+        <Button Name="ButtonReportIssue" Click="ButtonReportIssue_OnClick" />
+        <Button Name="ButtonExitProgram" Click="ButtonExitProgram_OnClick" />
+        <Button Name="ButtonIgnoreAndContinue" Click="ButtonIgnoreAndContinue_OnClick" IsDefault="True" />
+    </dialogs:DialogLayout.Buttons>
+</dialogs:DialogLayout>

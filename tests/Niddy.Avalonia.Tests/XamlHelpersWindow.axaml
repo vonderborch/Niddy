@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:niddy="https://github.com/vonderborch/Niddy"
+        xmlns:local="using:Niddy.Avalonia.Tests"
+        x:Class="Niddy.Avalonia.Tests.XamlHelpersWindow"
+        x:DataType="local:XamlHelpersModel"
+        niddy:WindowMemory.Key="Helpers"
+        Width="400" Height="300">
+    <Window.Styles>
+        <Style Selector="StackPanel.narrow">
+            <Setter Property="Orientation" Value="Horizontal" />
+        </Style>
+    </Window.Styles>
+    <Grid x:Name="Split" niddy:LayoutMemory.Key="Helpers.Split" ColumnDefinitions="200,*">
+        <StackPanel x:Name="Panel" Grid.Column="1" niddy:Responsive.NarrowBelow="600" niddy:Responsive.WideAbove="1000">
+            <RadioButton x:Name="Dark" Content="Dark"
+                         IsChecked="{Binding Mode, Converter={x:Static niddy:EnumToBoolConverter.Instance}, ConverterParameter=Dark}" />
+            <ComboBox x:Name="Modes" ItemsSource="{niddy:EnumValues local:XamlHelpersMode}" SelectedItem="{Binding Mode}" />
+            <TextBlock x:Name="Size" Text="{Binding Size, Converter={x:Static niddy:HumanizeConverters.FileSize}}" />
+            <TextBlock x:Name="Empty" Text="Nothing here yet"
+                       IsVisible="{Binding Items, Converter={x:Static niddy:CollectionConverters.IsEmpty}}" />
+        </StackPanel>
+    </Grid>
+</Window>

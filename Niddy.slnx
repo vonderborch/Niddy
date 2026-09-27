@@ -1,0 +1,33 @@
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="docs\AI-GUIDE.md" />
+    <File Path="docs\README.md" />
+  </Folder>
+  <Folder Name="/SolutionFiles/">
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+    <File Path="tests/Directory.Build.props" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Niddy.Avalonia/Niddy.Avalonia.csproj">
+      <Deploy Solution="Release|*" />
+    </Project>
+    <Project Path="src/Niddy.Avalonia.Generators/Niddy.Avalonia.Generators.csproj">
+      <Deploy Solution="Release|*" />
+    </Project>
+    <Project Path="src/Niddy.Core/Niddy.Core.csproj">
+      <Deploy Solution="Release|*" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Niddy.Avalonia.Generators.Tests/Niddy.Avalonia.Generators.Tests.csproj" />
+    <Project Path="tests/Niddy.Avalonia.Tests/Niddy.Avalonia.Tests.csproj" />
+    <Project Path="tests/Niddy.Core.Tests/Niddy.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Fixtures/">
+    <Project Path="tests/Fixtures/Niddy.TestFixtures.ExternalPages/Niddy.TestFixtures.ExternalPages.csproj" />
+    <Project Path="tests/Fixtures/Niddy.TestFixtures.PluginPages/Niddy.TestFixtures.PluginPages.csproj" />
+  </Folder>
+</Solution>

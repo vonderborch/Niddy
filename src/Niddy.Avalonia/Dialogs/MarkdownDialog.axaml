@@ -1,0 +1,17 @@
+<dialogs:DialogLayout xmlns="https://github.com/avaloniaui"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                      xmlns:dialogs="clr-namespace:Niddy.Avalonia.Dialogs"
+                      xmlns:md="clr-namespace:Markdown.Avalonia.Full;assembly=Markdown.Avalonia.Full"
+                      mc:Ignorable="d" d:DesignWidth="500"
+                      x:Class="Niddy.Avalonia.Dialogs.MarkdownDialog"
+                      x:ClassModifier="internal">
+
+    <md:MarkdownScrollViewer Name="MarkdownViewer" MaxHeight="420" SelectionEnabled="True" />
+
+    <dialogs:DialogLayout.Buttons>
+        <Button Name="ButtonCancel" Click="ButtonCancel_OnClick" />
+        <Button Name="ButtonOk" Click="ButtonOk_OnClick" IsDefault="True" />
+    </dialogs:DialogLayout.Buttons>
+</dialogs:DialogLayout>

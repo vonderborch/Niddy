@@ -1,0 +1,25 @@
+<Project>
+
+  <PropertyGroup>
+    <Authors>Christian Webber</Authors>
+    <Company>Christian Webber</Company>
+    <Copyright>Copyright © Christian Webber $([System.DateTime]::Now.Year)</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>niddy;personal;utilities</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/vonderborch/Niddy</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vonderborch/Niddy</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- CI sets Version from the GitHub release tag via -p:Version. Local builds get a dev version. -->
+    <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+</Project>

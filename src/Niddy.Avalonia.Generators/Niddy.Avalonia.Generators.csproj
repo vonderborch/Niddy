@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- A Roslyn source generator: compiles against netstandard2.0 and ships as an analyzer, not a library. -->
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsPackable>true</IsPackable>
+        <PackageId>Niddy.Avalonia.Generators</PackageId>
+        <Description>Niddy: my personal .NET utilities. Registers Niddy.Avalonia pages tagged with [PageRegistration] automatically, including pages in referenced projects and in assemblies loaded at runtime.</Description>
+        <PackageTags>$(PackageTags);avalonia;source-generator</PackageTags>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <DevelopmentDependency>false</DevelopmentDependency>
+        <GeneratePackageOnBuild Condition="'$(Configuration)' != 'Release'">true</GeneratePackageOnBuild>
+        <!-- RS2008: release tracking of diagnostic IDs. NU5128: no lib folder, which is expected for an analyzer. -->
+        <NoWarn>$(NoWarn);RS2008;NU5128</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Packed from the nuspec, which adds the dependency on Niddy.Avalonia that the generated code needs. -->
+    <PropertyGroup>
+        <NuspecFile>Niddy.Avalonia.Generators.nuspec</NuspecFile>
+    </PropertyGroup>
+
+    <Target Name="SetNuspecProperties" BeforeTargets="GenerateNuspec">
+        <PropertyGroup>
+            <NuspecProperties>id=$(PackageId);version=$(PackageVersion);authors=$(Authors);description=$(Description);copyright=$(Copyright);license=$(PackageLicenseExpression);projectUrl=$(PackageProjectUrl);repositoryUrl=$(RepositoryUrl);tags=$(PackageTags.Replace(';', ' '));generatorPath=$(ProjectDir)$(OutputPath)$(AssemblyName).dll;readmePath=$(MSBuildThisFileDirectory)../../README.md</NuspecProperties>
+        </PropertyGroup>
+    </Target>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="Niddy.Avalonia.Generators.Tests" />
+    </ItemGroup>
+
+</Project>
