@@ -150,6 +150,11 @@ All packages share one [SemVer 2](https://semver.org) version, taken from the Gi
 1. Create a GitHub release with a tag like `v1.2.0` (or `v1.3.0-beta.1` for a pre-release; the leading `v` is optional)
 2. Publishing the release runs the [publish workflow](.github/workflows/nuget-publish.yml), which runs the tests, then packs every project at that version and pushes it to NuGet
 
+Publishing uses nuget.org [trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing), so no API key is stored in the repo. It needs, once:
+
+- a trusted publishing policy on nuget.org (your username → **Trusted Publishing**) for owner `vonderborch`, repository `Niddy` and workflow file `nuget-publish.yml`
+- a `NUGET_USER` repository secret holding the nuget.org profile name that owns the packages
+
 Local builds are versioned `0.0.0-dev`.
 
 ## Future Plans
