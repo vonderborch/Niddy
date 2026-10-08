@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
-using Niddy.Threading;
+using Niddy.Core.Threading;
 
 namespace Niddy.Core.Tests;
 
@@ -10,8 +10,8 @@ public class DebouncerTests
     [Fact]
     public void Invoke_RunsOnlyTheLastActionAfterTheDelay()
     {
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
-        var runs = new List<int>();
+        using Debouncer debouncer = new(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
+        List<int> runs = new();
 
         debouncer.Invoke(() => runs.Add(1));
         _time.Advance(TimeSpan.FromMilliseconds(60));
@@ -30,8 +30,8 @@ public class DebouncerTests
     [Fact]
     public void Cancel_DropsThePendingAction()
     {
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
-        var ran = false;
+        using Debouncer debouncer = new(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
+        bool ran = false;
 
         debouncer.Invoke(() => ran = true);
         debouncer.Cancel();
@@ -43,8 +43,8 @@ public class DebouncerTests
     [Fact]
     public void Flush_RunsThePendingActionNow()
     {
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
-        var runs = 0;
+        using Debouncer debouncer = new(TimeSpan.FromMilliseconds(100), _time, captureContext: false);
+        int runs = 0;
 
         debouncer.Invoke(() => runs++);
         debouncer.Flush();
@@ -56,8 +56,8 @@ public class DebouncerTests
     [Fact]
     public void Invoke_CancelsTheTokenOfARunningAsyncAction()
     {
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
-        var gate = new TaskCompletionSource();
+        using Debouncer debouncer = new(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
+        TaskCompletionSource gate = new();
         CancellationToken first = default;
 
         debouncer.Invoke(async token =>
@@ -77,7 +77,7 @@ public class DebouncerTests
     [Fact]
     public void Error_ReceivesExceptionsFromTheAction()
     {
-        using var debouncer = new Debouncer(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
+        using Debouncer debouncer = new(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
         Exception? error = null;
         debouncer.Error += (_, ex) => error = ex;
 
@@ -90,7 +90,7 @@ public class DebouncerTests
     [Fact]
     public void Invoke_AfterDispose_Throws()
     {
-        var debouncer = new Debouncer(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
+        Debouncer debouncer = new(TimeSpan.FromMilliseconds(10), _time, captureContext: false);
         debouncer.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => debouncer.Invoke(() => { }));
@@ -104,8 +104,8 @@ public class ThrottlerTests
     [Fact]
     public void Invoke_RunsTheFirstCallNowAndTheLastAtTheEndOfTheInterval()
     {
-        using var throttler = new Throttler(TimeSpan.FromMilliseconds(100), timeProvider: _time, captureContext: false);
-        var runs = new List<int>();
+        using Throttler throttler = new(TimeSpan.FromMilliseconds(100), timeProvider: _time, captureContext: false);
+        List<int> runs = new();
 
         throttler.Invoke(() => runs.Add(1));
         throttler.Invoke(() => runs.Add(2));
@@ -125,8 +125,8 @@ public class ThrottlerTests
     [Fact]
     public void Invoke_AfterAQuietInterval_RunsNowAgain()
     {
-        using var throttler = new Throttler(TimeSpan.FromMilliseconds(100), timeProvider: _time, captureContext: false);
-        var runs = 0;
+        using Throttler throttler = new(TimeSpan.FromMilliseconds(100), timeProvider: _time, captureContext: false);
+        int runs = 0;
 
         throttler.Invoke(() => runs++);
         _time.Advance(TimeSpan.FromMilliseconds(150));
@@ -138,8 +138,8 @@ public class ThrottlerTests
     [Fact]
     public void LeadingOnly_DropsCallsDuringTheInterval()
     {
-        using var throttler = new Throttler(TimeSpan.FromMilliseconds(100), trailing: false, timeProvider: _time, captureContext: false);
-        var runs = new List<int>();
+        using Throttler throttler = new(TimeSpan.FromMilliseconds(100), trailing: false, timeProvider: _time, captureContext: false);
+        List<int> runs = new();
 
         throttler.Invoke(() => runs.Add(1));
         throttler.Invoke(() => runs.Add(2));
@@ -151,8 +151,8 @@ public class ThrottlerTests
     [Fact]
     public void TrailingOnly_WaitsForTheEndOfTheInterval()
     {
-        using var throttler = new Throttler(TimeSpan.FromMilliseconds(100), leading: false, timeProvider: _time, captureContext: false);
-        var runs = new List<int>();
+        using Throttler throttler = new(TimeSpan.FromMilliseconds(100), leading: false, timeProvider: _time, captureContext: false);
+        List<int> runs = new();
 
         throttler.Invoke(() => runs.Add(1));
         throttler.Invoke(() => runs.Add(2));

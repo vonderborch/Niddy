@@ -5,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
-using Niddy.Avalonia.Utilities;
 
 namespace Niddy.Avalonia.PageSystem;
 
@@ -34,22 +33,22 @@ namespace Niddy.Avalonia.PageSystem;
 public partial class PageView : UserControl
 {
     /// <summary>Defines the <see cref="StartingPage" /> property.</summary>
-    public static readonly StyledProperty<Type?> StartingPageProperty = AvaloniaProperty.Register<PageView, Type>("StartingPage");
+    public static readonly StyledProperty<Type?> StartingPageProperty = AvaloniaProperty.Register<PageView, Type?>(nameof(StartingPage));
 
     /// <summary>Defines the <see cref="ParentPage" /> property.</summary>
-    public static readonly StyledProperty<Type?> ParentPageProperty = AvaloniaProperty.Register<PageView, Type>("ParentPage");
+    public static readonly StyledProperty<Type?> ParentPageProperty = AvaloniaProperty.Register<PageView, Type?>(nameof(ParentPage));
 
     /// <summary>Defines the <see cref="AppDataContext" /> property.</summary>
-    public static readonly StyledProperty<object?> AppDataContextProperty = AvaloniaProperty.Register<PageView, object>("AppDataContext");
+    public static readonly StyledProperty<object?> AppDataContextProperty = AvaloniaProperty.Register<PageView, object?>(nameof(AppDataContext));
 
     /// <summary>Defines the <see cref="HandleBackRequests" /> property.</summary>
-    public static readonly StyledProperty<bool> HandleBackRequestsProperty = AvaloniaProperty.Register<PageView, bool>("HandleBackRequests", defaultValue: true);
+    public static readonly StyledProperty<bool> HandleBackRequestsProperty = AvaloniaProperty.Register<PageView, bool>(nameof(HandleBackRequests), defaultValue: true);
 
     /// <summary>Defines the <see cref="HandleShortcuts" /> property.</summary>
-    public static readonly StyledProperty<bool> HandleShortcutsProperty = AvaloniaProperty.Register<PageView, bool>("HandleShortcuts", defaultValue: true);
+    public static readonly StyledProperty<bool> HandleShortcutsProperty = AvaloniaProperty.Register<PageView, bool>(nameof(HandleShortcuts), defaultValue: true);
 
     /// <summary>Defines the <see cref="PageTransition" /> property.</summary>
-    public static readonly StyledProperty<IPageTransition?> PageTransitionProperty = AvaloniaProperty.Register<PageView, IPageTransition>("PageTransition");
+    public static readonly StyledProperty<IPageTransition?> PageTransitionProperty = AvaloniaProperty.Register<PageView, IPageTransition?>(nameof(PageTransition));
 
     private IDisposable? _backRegistration;
 
@@ -93,7 +92,7 @@ public partial class PageView : UserControl
 
     /// <summary>
     ///     The app-wide data context given to every page in this view, separate from the view's own
-    ///     <see cref="DataContext" />. Read when a page is first shown. If not set, a view inside a page
+    ///     <see cref="global::Avalonia.StyledElement.DataContext" />. Read when a page is first shown. If not set, a view inside a page
     ///     uses the app data context of the view showing that page.
     /// </summary>
     public object? AppDataContext
@@ -122,7 +121,7 @@ public partial class PageView : UserControl
     }
 
     /// <summary>
-    ///     Whether pressing the <see cref="Shortcut" /> of one of the view's available pages anywhere
+    ///     Whether pressing the <see cref="PageRegistration.Shortcut" /> of one of the view's available pages anywhere
     ///     in its window navigates to it. Defaults to true. Keys already handled, e.g. by a text box, are ignored.
     /// </summary>
     public bool HandleShortcuts
@@ -227,8 +226,7 @@ public partial class PageView : UserControl
         PageControlDataContext.RefreshAvailablePages();
         if (PageControlDataContext.ActivePage == null)
         {
-            Type startingPage = StartingPage;
-            if ((object)startingPage != null)
+            if (StartingPage is { } startingPage)
             {
                 PageControlDataContext.NavigateTo(PageId.Of(startingPage), addToBackStack: false);
             }
@@ -252,8 +250,7 @@ public partial class PageView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        TopLevel topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel != null)
+        if (TopLevel.GetTopLevel(this) is { } topLevel)
         {
             _backRegistration = BackNavigation.Register(topLevel, 0, OnBackRequested);
             _shortcutTopLevel = topLevel;
@@ -277,37 +274,27 @@ public partial class PageView : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == ParentPageProperty)
         {
-            PageControlDataContext pageControlDataContext = PageControlDataContext;
-            Type parentPage = ParentPage;
-            pageControlDataContext.ParentPage = (((object)parentPage != null) ? PageId.Of(parentPage) : null);
+            PageControlDataContext.ParentPage = ParentPage is { } parentPage ? PageId.Of(parentPage) : null;
             UpdateChildView();
         }
         else if (change.Property == PageTransitionProperty)
         {
             PageContent.PageTransition = PageTransition;
         }
-        else
+        else if (change.Property == StartingPageProperty && PageControlDataContext.ActivePage != null && StartingPage is { } startingPage)
         {
-            if (!(change.Property == StartingPageProperty) || PageControlDataContext.ActivePage == null)
+            PageId pageId = PageId.Of(startingPage);
+            if (PageControlDataContext.NavigateTo(pageId, addToBackStack: false) || PageControlDataContext.CurrentPageId == pageId)
             {
-                return;
-            }
-            Type startingPage = StartingPage;
-            if ((object)startingPage != null)
-            {
-                PageId pageId = PageId.Of(startingPage);
-                if (PageControlDataContext.NavigateTo(pageId, addToBackStack: false) || PageControlDataContext.CurrentPageId == pageId)
-                {
-                    PageControlDataContext.ClearBackStack();
-                }
+                PageControlDataContext.ClearBackStack();
             }
         }
     }
 
     private PageId? InferParentPage()
     {
-        PageRegistration pageRegistration = _containingPage?.Registration;
-        return (pageRegistration != null && pageRegistration.Children.Count > 0) ? pageRegistration.PageId : null;
+        PageRegistration? registration = _containingPage?.Registration;
+        return registration is { Children.Count: > 0 } ? registration.PageId : null;
     }
 
     /// <summary>Tells the containing page that this view shows its child pages, for <c>NavigateToChild</c>.</summary>
@@ -315,7 +302,7 @@ public partial class PageView : UserControl
     {
         if (_containingPage != null)
         {
-            PageRegistration registration = _containingPage.Registration;
+            PageRegistration? registration = _containingPage.Registration;
             if (registration != null && PageControlDataContext.ParentPage == registration.PageId)
             {
                 _containingPage.ChildView = this;
@@ -354,14 +341,13 @@ public partial class PageView : UserControl
     /// <summary>Navigates to the available page whose shortcut matches, if any.</summary>
     internal bool HandleShortcut(Key key, KeyModifiers modifiers)
     {
-        if (!HandleShortcuts || !base.IsEffectivelyVisible)
+        if (!HandleShortcuts || !IsEffectivelyVisible)
         {
             return false;
         }
         foreach (PageRegistration availablePage in PageControlDataContext.AvailablePages)
         {
-            KeyGesture shortcut = availablePage.Shortcut;
-            if ((object)shortcut != null && shortcut.Key == key && shortcut.KeyModifiers == modifiers)
+            if (availablePage.Shortcut is { } shortcut && shortcut.Key == key && shortcut.KeyModifiers == modifiers)
             {
                 if (PageControlDataContext.CurrentPageId != availablePage.PageId)
                 {

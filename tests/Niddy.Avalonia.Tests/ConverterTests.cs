@@ -18,7 +18,7 @@ public class ConverterTests
     [Fact]
     public void EnumToBool_MatchesByValueOrName()
     {
-        var converter = EnumToBoolConverter.Instance;
+        EnumToBoolConverter converter = EnumToBoolConverter.Instance;
         Assert.Equal(true, Convert(converter, Mode.Dark, "Dark"));
         Assert.Equal(true, Convert(converter, Mode.Dark, Mode.Dark));
         Assert.Equal(false, Convert(converter, Mode.Light, "dark"));
@@ -28,7 +28,7 @@ public class ConverterTests
     [Fact]
     public void EnumToBool_ConvertsBackOnlyWhenChecked()
     {
-        var converter = EnumToBoolConverter.Instance;
+        EnumToBoolConverter converter = EnumToBoolConverter.Instance;
         Assert.Equal(Mode.Dark, converter.ConvertBack(true, typeof(Mode), "Dark", CultureInfo.InvariantCulture));
         Assert.Equal(Mode.Light, converter.ConvertBack(true, typeof(Mode?), Mode.Light, CultureInfo.InvariantCulture));
         Assert.Same(BindingOperations.DoNothing, converter.ConvertBack(false, typeof(Mode), "Dark", CultureInfo.InvariantCulture));
@@ -37,7 +37,7 @@ public class ConverterTests
     [Fact]
     public void BoolToValue_PicksTheValue()
     {
-        var converter = new BoolToValueConverter { TrueValue = "Online", FalseValue = "Offline" };
+        BoolToValueConverter converter = new() { TrueValue = "Online", FalseValue = "Offline" };
         Assert.Equal("Online", Convert(converter, true));
         Assert.Equal("Offline", Convert(converter, false));
         Assert.Equal("Offline", Convert(converter, null));
@@ -48,7 +48,7 @@ public class ConverterTests
     [Fact]
     public void Humanize_FormatsValues()
     {
-        var culture = CultureInfo.CurrentCulture;
+        CultureInfo culture = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         try
         {
@@ -79,7 +79,7 @@ public class ConverterTests
     [Fact]
     public void EnumValues_ListsTheValues()
     {
-        var values = new EnumValuesExtension(typeof(Mode?)).ProvideValue(null!);
+        object values = new EnumValuesExtension(typeof(Mode?)).ProvideValue(null!);
         Assert.Equal([Mode.Light, Mode.Dark], ((Array)values).Cast<Mode>());
         Assert.Throws<ArgumentException>(() => new EnumValuesExtension(typeof(string)).ProvideValue(null!));
     }
@@ -95,9 +95,9 @@ public class ConverterTests
     [AvaloniaFact]
     public void Responsive_SetsClassesFromTheWidth()
     {
-        var panel = new StackPanel();
+        StackPanel panel = new();
         Responsive.SetNarrowBelow(panel, 600);
-        var window = new Window { Width = 400, Height = 300, Content = panel };
+        Window window = new() { Width = 400, Height = 300, Content = panel };
         window.Show();
         global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 

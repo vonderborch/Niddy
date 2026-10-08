@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Niddy.Avalonia.PageSystem;
+using Niddy.Core.SystemInfo;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -16,7 +17,7 @@ public class ShortcutTests
     [InlineData("Ctrl++", Key.OemPlus, KeyModifiers.Control)]
     public void ParsesGestures(string text, Key key, KeyModifiers modifiers)
     {
-        var gesture = PageShortcut.Parse(text);
+        KeyGesture gesture = PageShortcut.Parse(text);
         Assert.Equal(key, gesture.Key);
         Assert.Equal(modifiers, gesture.KeyModifiers);
     }
@@ -24,11 +25,23 @@ public class ShortcutTests
     [Fact]
     public void PrimaryIsThePlatformModifier()
     {
-        var gesture = PageShortcut.Parse("Primary+1");
+        KeyGesture gesture = PageShortcut.Parse("Primary+1");
         Assert.Equal(Key.D1, gesture.Key);
         Assert.Equal(PageShortcut.PrimaryModifier, gesture.KeyModifiers);
-        Assert.Equal(OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control, PageShortcut.PrimaryModifier);
+        Assert.Equal(PageShortcut.PrimaryModifierFor(Platform.Info.OS), PageShortcut.PrimaryModifier);
     }
+
+    [Theory]
+    [InlineData(OS.MacOS, KeyModifiers.Meta)]
+    [InlineData(OS.MacCatalyst, KeyModifiers.Meta)]
+    [InlineData(OS.iOS, KeyModifiers.Meta)]
+    [InlineData(OS.iPadOS, KeyModifiers.Meta)]
+    [InlineData(OS.Windows, KeyModifiers.Control)]
+    [InlineData(OS.Linux, KeyModifiers.Control)]
+    [InlineData(OS.Android, KeyModifiers.Control)]
+    [InlineData(OS.Browser, KeyModifiers.Control)]
+    public void PrimaryIsCmdOnApplePlatforms(OS os, KeyModifiers expected) =>
+        Assert.Equal(expected, PageShortcut.PrimaryModifierFor(os));
 
     [Theory]
     [InlineData("")]
@@ -44,14 +57,14 @@ public class ShortcutTests
     [AvaloniaFact]
     public void GeneratedRegistrationsHaveTheirShortcut()
     {
-        var registration = PageRegistry.Find(DetailsPage.PageId)!;
+        PageRegistration registration = PageRegistry.Find(DetailsPage.PageId)!;
         Assert.Equal(PageShortcut.Parse("Primary+2"), registration.Shortcut);
     }
 
     [AvaloniaFact]
     public void ShortcutsNavigateToAvailablePages()
     {
-        var view = new PageView { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
+        PageView view = new() { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
         new Window { Content = view }.Show();
         Dispatcher.UIThread.RunJobs();
 
@@ -69,8 +82,8 @@ public class ShortcutTests
     [AvaloniaFact]
     public void KeyPressesInTheWindowTriggerShortcuts()
     {
-        var view = new PageView { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
-        var window = new Window { Content = view };
+        PageView view = new() { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
+        Window window = new() { Content = view };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 

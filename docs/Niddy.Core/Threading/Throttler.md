@@ -1,6 +1,6 @@
 # Throttler
 
-`Niddy.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Throttler.cs)
+`Niddy.Core.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Throttler.cs)
 
 Runs an action at most once per `Interval`, however often `Invoke` is called. By default the first call runs straight away (*leading*) and the last call in each interval runs when it ends (*trailing*), so the final state is never missed. Use it for progress updates, scroll and pointer-move handling. To wait for calls to *stop*, use [`Debouncer`](Debouncer.md).
 
@@ -22,16 +22,16 @@ Leading calls run on the calling thread. Trailing calls run on the `Synchronizat
 Report progress from a fast loop without flooding the UI:
 
 ```csharp
-using Niddy.Threading;
+using Niddy.Core.Threading;
 
-var throttle = new Throttler(TimeSpan.FromMilliseconds(100));   // created on the UI thread
+Throttler throttle = new(TimeSpan.FromMilliseconds(100));   // created on the UI thread
 
 await Task.Run(() =>
 {
-    for (var i = 0; i < files.Count; i++)
+    for (int i = 0; i < files.Count; i++)
     {
         Process(files[i]);
-        var done = i + 1;
+        int done = i + 1;
         throttle.Invoke(() => Dispatcher.UIThread.Post(() => StatusText = $"{done} of {files.Count}"));
     }
 });

@@ -3,7 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Niddy.Avalonia.Hosting;
-using Niddy.Avalonia.Toast;
+using Niddy.Avalonia.Toasts;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -11,9 +11,9 @@ public class ToastHostTests
 {
     private static (ToastHost Host, Window Window) Show(double width = 800, Action<ToastHost>? configure = null)
     {
-        var host = new ToastHost { Content = new Border() };
+        ToastHost host = new() { Content = new Border() };
         configure?.Invoke(host);
-        var window = new Window { Width = width, Height = 600, Content = host };
+        Window window = new() { Width = width, Height = 600, Content = host };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return (host, window);
@@ -32,7 +32,7 @@ public class ToastHostTests
     [InlineData(ScreenPlacement.BottomRight, HorizontalAlignment.Right, VerticalAlignment.Bottom)]
     public void ToastsAreShownAtThePlacement(ScreenPlacement placement, HorizontalAlignment horizontal, VerticalAlignment vertical)
     {
-        var (host, _) = Show(configure: h => h.Placement = placement);
+        (ToastHost host, _) = Show(configure: h => h.Placement = placement);
 
         Assert.Equal(placement, host.ActualPlacement);
         Assert.Equal(horizontal, List(host).HorizontalAlignment);
@@ -42,7 +42,7 @@ public class ToastHostTests
     [AvaloniaFact]
     public void NarrowHostsUseTheNarrowPlacement()
     {
-        var (host, window) = Show(configure: h => h.Placement = ScreenPlacement.TopRight);
+        (ToastHost host, Window window) = Show(configure: h => h.Placement = ScreenPlacement.TopRight);
         Assert.Equal(ScreenPlacement.TopRight, host.ActualPlacement);
 
         window.Width = 400;
@@ -65,14 +65,14 @@ public class ToastHostTests
     [InlineData(ScreenPlacement.CenterLeft, false)]
     public void TheNewestToastIsNearestTheEdge(ScreenPlacement placement, bool newestFirst)
     {
-        var (host, _) = Show(configure: h => h.Placement = placement);
-        var first = new ToastItem("first", ToastType.Info, TimeSpan.FromMinutes(1));
-        var second = new ToastItem("second", ToastType.Info, TimeSpan.FromMinutes(1));
+        (ToastHost host, _) = Show(configure: h => h.Placement = placement);
+        ToastItem first = new("first", ToastType.Info, TimeSpan.FromMinutes(1));
+        ToastItem second = new("second", ToastType.Info, TimeSpan.FromMinutes(1));
 
         host.AddToast(first);
         host.AddToast(second);
 
-        var items = List(host).Items.Cast<ToastItem>().ToList();
+        List<ToastItem> items = List(host).Items.Cast<ToastItem>().ToList();
         Assert.Equal(newestFirst ? [second, first] : [first, second], items);
     }
 }

@@ -1,7 +1,8 @@
 using System.Text.Json;
-using Niddy.IO;
-using Niddy.Settings;
-using Niddy.Threading;
+using Niddy.Core.IO;
+using Niddy.Core.Settings;
+using Niddy.Core.Threading;
+using Niddy.Avalonia.Hosting;
 
 namespace Niddy.Avalonia.State;
 
@@ -10,9 +11,9 @@ namespace Niddy.Avalonia.State;
 /// splitter positions (<see cref="LayoutMemory" />), to a JSON file. Changes are saved shortly after they happen.
 /// </summary>
 /// <remarks>
-/// <see cref="NiddyApp" /> sets <see cref="Default" /> to <c>ui-state.json</c> in the app's data folder
-/// (see <see cref="Paths" />) unless <see cref="RememberWindowState" />
-/// is false. Without it, set <see cref="Default" /> yourself, or pass a store to <see cref="Attach(Window,string,UiStateStore)" />.
+/// <see cref="Hosting.NiddyApp" /> sets <see cref="Default" /> to <c>ui-state.json</c> in the app's data folder
+/// (see <see cref="Hosting.NiddyApp.Paths" />) unless <see cref="Hosting.NiddyAppOptions.RememberWindowState" />
+/// is false. Without it, set <see cref="Default" /> yourself, or pass a store to <see cref="WindowMemory.Attach" />.
 /// </remarks>
 public sealed class UiStateStore : SettingsStore<UiState>
 {
@@ -31,9 +32,11 @@ public sealed class UiStateStore : SettingsStore<UiState>
         : base(filePath, (JsonSerializerOptions?)null)
     {
         _saver = new Debouncer(saveDelay ?? TimeSpan.FromMilliseconds(500L), null, captureContext: false);
+        // Without a handler the Debouncer rethrows on the thread pool, which would crash the app over a lost window size.
+        _saver.Error += (_, ex) => NiddyLog.Warning(typeof(UiStateStore), ex, $"Couldn't save UI state to '{FilePath}'");
     }
 
-    /// <summary>Creates a store at <c>ui-state.json</c> in the app's <see cref="Data" /> folder.</summary>
+    /// <summary>Creates a store at <c>ui-state.json</c> in the app's <see cref="AppPaths.Data" /> folder.</summary>
     public static UiStateStore For(AppPaths paths)
     {
         return new UiStateStore(Path.Combine(paths.Data, "ui-state.json"));
@@ -69,6 +72,18 @@ public sealed class UiStateStore : SettingsStore<UiState>
     public void Flush()
     {
         _saver.Flush();
+    }
+
+    /// <summary>Saves pending changes, then stops saving.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _saver.Flush();
+            _saver.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     private void SaveSoon()

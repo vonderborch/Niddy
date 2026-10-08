@@ -24,7 +24,10 @@ public sealed class EnumToBoolConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not Enum enumValue || parameter is null)
+        {
             return false;
+        }
+
         return ToEnum(enumValue.GetType(), parameter) is { } target && enumValue.Equals(target);
     }
 
@@ -32,15 +35,18 @@ public sealed class EnumToBoolConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not true || parameter is null)
+        {
             return BindingOperations.DoNothing;
-        var enumType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        }
+
+        Type enumType = Nullable.GetUnderlyingType(targetType) ?? targetType;
         return enumType.IsEnum ? ToEnum(enumType, parameter) ?? BindingOperations.DoNothing : BindingOperations.DoNothing;
     }
 
     private static object? ToEnum(Type enumType, object parameter) => parameter switch
     {
         _ when parameter.GetType() == enumType => parameter,
-        string name when Enum.TryParse(enumType, name, ignoreCase: true, out var parsed) => parsed,
+        string name when Enum.TryParse(enumType, name, ignoreCase: true, out object? parsed) => parsed,
         _ => null,
     };
 }

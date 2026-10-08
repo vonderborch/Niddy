@@ -16,10 +16,10 @@ public class PageMenuTests
 {
     private static (PageMenu Menu, PageView View, Window Window) Show(double width = 800, Action<PageMenu>? configure = null, bool wrap = false)
     {
-        var view = new PageView { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
-        var menu = wrap ? new PageMenu { Content = view } : new PageMenu { Target = view };
+        PageView view = new() { StartingPage = typeof(HomePage), AppDataContext = new TestAppDataContext() };
+        PageMenu menu = wrap ? new PageMenu { Content = view } : new PageMenu { Target = view };
         configure?.Invoke(menu);
-        var window = new Window { Width = width, Height = 600, Content = wrap ? menu : new DockPanel { Children = { menu, view } } };
+        Window window = new() { Width = width, Height = 600, Content = wrap ? menu : new DockPanel { Children = { menu, view } } };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return (menu, view, window);
@@ -38,7 +38,7 @@ public class PageMenuTests
 
     private static void Click(Window window, Visual target)
     {
-        var point = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)!.Value;
+        Point point = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window)!.Value;
         window.MouseDown(point, MouseButton.Left);
         window.MouseUp(point, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
@@ -49,7 +49,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ListsTopLevelPagesAndHighlightsTheCurrentOne()
     {
-        var (menu, _, _) = Show();
+        (PageMenu menu, _, _) = Show();
 
         Assert.Equal(PageRegistry.GetPages().Select(p => p.PageType), Items(menu));
         Assert.Contains(typeof(HomePage), Items(menu));
@@ -60,7 +60,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ItemsCarryTheRegistrationsIcon()
     {
-        var (menu, _, _) = Show();
+        (PageMenu menu, _, _) = Show();
 
         Assert.NotNull(Item<HomePage>(menu).Icon);
         Assert.Same(PageRegistry.Find(HomePage.PageId)!.Icon, Item<HomePage>(menu).Icon);
@@ -70,7 +70,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void PickingAPageNavigatesTheTargetWithoutTheBackStack()
     {
-        var (menu, view, _) = Show();
+        (PageMenu menu, PageView view, _) = Show();
 
         menu.SelectedItem = Item<DetailsPage>(menu);
 
@@ -82,7 +82,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void PickingAPageCanAddToTheBackStack()
     {
-        var (menu, view, _) = Show(configure: m => m.AddToBackStack = true);
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.AddToBackStack = true);
 
         menu.SelectedItem = Item<DetailsPage>(menu);
 
@@ -92,7 +92,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void HighlightFollowsNavigationAndGoingBack()
     {
-        var (menu, view, _) = Show();
+        (PageMenu menu, PageView view, _) = Show();
 
         view.NavigateTo<GuardedPage>();
         Assert.Equal(typeof(GuardedPage), menu.SelectedItem?.PageType);
@@ -108,7 +108,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ASectionStaysHighlightedWhileOneOfItsChildPagesIsShown()
     {
-        var (menu, view, _) = Show();
+        (PageMenu menu, PageView view, _) = Show();
 
         // ItemPage has two parents in the menu; the one it was reached from is highlighted.
         view.PageControlDataContext.NavigateToChild<ItemPage>();
@@ -123,7 +123,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TappingTheHighlightedSectionReturnsToIt()
     {
-        var (menu, view, window) = Show();
+        (PageMenu menu, PageView view, Window window) = Show();
         view.PageControlDataContext.NavigateToChild<ItemPage>();
 
         Click(window, Container(menu, Item<HomePage>(menu)));
@@ -134,7 +134,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TappingAnItemNavigates()
     {
-        var (menu, view, window) = Show();
+        (PageMenu menu, PageView view, Window window) = Show();
 
         Click(window, Container(menu, Item<DetailsPage>(menu)));
 
@@ -144,7 +144,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void RefusedNavigationKeepsTheCurrentPageHighlighted()
     {
-        var (menu, view, _) = Show();
+        (PageMenu menu, PageView view, _) = Show();
         view.NavigateTo<GuardedPage>();
         ((GuardedPage)Shown(view)!).Block = true;
 
@@ -158,12 +158,12 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ListsTheChildPagesOfAGivenParent()
     {
-        var (menu, view, _) = Show(configure: m => m.ParentPage = typeof(SettingsPage));
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.ParentPage = typeof(SettingsPage));
         view.NavigateTo<SettingsPage>();
-        var children = ((SettingsPage)Shown(view)!).Children;
+        PageView children = ((SettingsPage)Shown(view)!).Children;
         menu.Target = children;
 
-        Assert.Equal([typeof(GeneralSettingsPage), typeof(AdvancedSettingsPage), typeof(AboutPage)], Items(menu));
+        Assert.Equal([typeof(AboutPage), typeof(AdvancedSettingsPage), typeof(GeneralSettingsPage)], Items(menu));
         Assert.Equal(typeof(GeneralSettingsPage), menu.SelectedItem?.PageType);
 
         menu.SelectedItem = Item<AdvancedSettingsPage>(menu);
@@ -174,7 +174,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ChangingTheParentChangesTheItems()
     {
-        var (menu, _, _) = Show(configure: m => m.ParentPage = typeof(SettingsPage));
+        (PageMenu menu, _, _) = Show(configure: m => m.ParentPage = typeof(SettingsPage));
         Assert.Contains(typeof(GeneralSettingsPage), Items(menu));
 
         menu.ParentPage = null;
@@ -185,7 +185,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void PagesRegisteredLaterAreAdded()
     {
-        var (menu, _, _) = Show(configure: m => m.ParentPage = typeof(LateParentPage));
+        (PageMenu menu, _, _) = Show(configure: m => m.ParentPage = typeof(LateParentPage));
         Assert.Empty(Items(menu));
 
         PageRegistry.Register<LateChildPage>(parents: [typeof(LateParentPage)]);
@@ -201,7 +201,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void NarrowWindowsUseTheNarrowStyleAndPlacement()
     {
-        var (menu, _, window) = Show(width: 800);
+        (PageMenu menu, _, Window window) = Show(width: 800);
         Assert.Equal(PageMenuStyle.VerticalStrip, menu.ActualStyle);
         Assert.Equal(ScreenPlacement.TopLeft, menu.ActualPlacement);
         Assert.Equal(DockSide.Left, DockPanel.GetDock(menu));
@@ -221,7 +221,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void WithoutNarrowSettingsTheStyleAndPlacementAreKept()
     {
-        var (menu, _, _) = Show(width: 400, configure: m =>
+        (PageMenu menu, _, _) = Show(width: 400, configure: m =>
         {
             m.Placement = ScreenPlacement.CenterRight;
             m.NarrowStyle = null;
@@ -251,7 +251,7 @@ public class PageMenuTests
     [InlineData(ScreenPlacement.BottomCenter, DockSide.Left, VerticalAlignment.Bottom)]
     public void AVerticalStripDocksToTheSideAndAlignsItsItems(ScreenPlacement placement, DockSide side, VerticalAlignment alignment)
     {
-        var (menu, _, _) = Show(configure: m => m.Placement = placement);
+        (PageMenu menu, _, _) = Show(configure: m => m.Placement = placement);
 
         Assert.Equal(side, DockPanel.GetDock(menu));
         Assert.Equal(Orientation.Vertical, ItemsPanel(menu).Orientation);
@@ -268,7 +268,7 @@ public class PageMenuTests
     [InlineData(ScreenPlacement.CenterRight, DockSide.Top, HorizontalAlignment.Right)]
     public void AHorizontalStripDocksToTheTopOrBottomAndAlignsItsItems(ScreenPlacement placement, DockSide side, HorizontalAlignment alignment)
     {
-        var (menu, _, _) = Show(configure: m =>
+        (PageMenu menu, _, _) = Show(configure: m =>
         {
             m.Style = PageMenuStyle.HorizontalStrip;
             m.Placement = placement;
@@ -286,7 +286,7 @@ public class PageMenuTests
     [InlineData(ScreenPlacement.CenterLeft, DockSide.Bottom)]
     public void ANavigationBarSpansTheTopOrBottom(ScreenPlacement placement, DockSide side)
     {
-        var (menu, _, _) = Show(configure: m =>
+        (PageMenu menu, _, _) = Show(configure: m =>
         {
             m.Style = PageMenuStyle.NavigationBar;
             m.Placement = placement;
@@ -300,7 +300,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void DockSetOnTheMenuWins()
     {
-        var (menu, _, _) = Show(width: 400, configure: m => DockPanel.SetDock(m, DockSide.Right));
+        (PageMenu menu, _, _) = Show(width: 400, configure: m => DockPanel.SetDock(m, DockSide.Right));
 
         Assert.Equal(ScreenPlacement.BottomCenter, menu.ActualPlacement);
         Assert.Equal(DockSide.Right, DockPanel.GetDock(menu));
@@ -309,7 +309,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void MobileModeUsesTheNarrowStyleAndTouchSizedItems()
     {
-        var (menu, _, _) = Show(width: 1000, configure: m => m.IsMobile = true);
+        (PageMenu menu, _, _) = Show(width: 1000, configure: m => m.IsMobile = true);
         Assert.Equal(PageMenuStyle.NavigationBar, menu.ActualStyle);
         Assert.Equal(56, Container(menu, Item<HomePage>(menu)).MinHeight);
 
@@ -329,14 +329,14 @@ public class PageMenuTests
     [InlineData(PageMenuStyle.NavigationBar, ScreenPlacement.BottomCenter)]
     public void ContentIsArrangedAroundTheMenu(PageMenuStyle style, ScreenPlacement placement)
     {
-        var (menu, view, window) = Show(wrap: true, configure: m =>
+        (PageMenu menu, PageView view, Window window) = Show(wrap: true, configure: m =>
         {
             m.Style = style;
             m.Placement = placement;
         });
 
-        var list = menu.List.Bounds;
-        var content = view.Bounds;
+        Rect list = menu.List.Bounds;
+        Rect content = view.Bounds;
         Assert.False(list.Intersects(content));
         switch (DockPanel.GetDock(menu.List))
         {
@@ -363,7 +363,7 @@ public class PageMenuTests
     [InlineData(ScreenPlacement.CenterRight, HorizontalAlignment.Center, PlacementMode.Left)]
     public void TheMenuButtonSitsAtThePlacement(ScreenPlacement placement, HorizontalAlignment alignment, PlacementMode flyoutPlacement)
     {
-        var (menu, view, window) = Show(wrap: true, configure: m =>
+        (PageMenu menu, PageView view, Window window) = Show(wrap: true, configure: m =>
         {
             m.Style = PageMenuStyle.MenuButton;
             m.Placement = placement;
@@ -374,8 +374,8 @@ public class PageMenuTests
         Assert.Null(TopLevel.GetTopLevel(menu.List));
         Assert.Equal(alignment, menu.MenuButton.HorizontalAlignment);
         Assert.Equal(flyoutPlacement, menu.MenuFlyout.Placement);
-        var button = menu.MenuButton.TranslatePoint(default, window)!.Value;
-        var page = view.TranslatePoint(default, window)!.Value;
+        Point button = menu.MenuButton.TranslatePoint(default, window)!.Value;
+        Point page = view.TranslatePoint(default, window)!.Value;
         switch (placement)
         {
             case ScreenPlacement.CenterLeft: Assert.True(button.X < page.X); break;
@@ -387,15 +387,15 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TheMenuButtonOpensTheMenuAndPickingClosesIt()
     {
-        var (menu, view, window) = Show(wrap: true, configure: m => m.Style = PageMenuStyle.MenuButton);
+        (PageMenu menu, PageView view, Window window) = Show(wrap: true, configure: m => m.Style = PageMenuStyle.MenuButton);
 
         Click(window, menu.MenuButton);
         Assert.True(menu.MenuFlyout.IsOpen);
         Assert.NotNull(TopLevel.GetTopLevel(menu.List));
 
-        var details = Container(menu, Item<DetailsPage>(menu));
-        var root = TopLevel.GetTopLevel(details)!;
-        var point = details.TranslatePoint(new Point(10, 10), root)!.Value;
+        Control details = Container(menu, Item<DetailsPage>(menu));
+        TopLevel root = TopLevel.GetTopLevel(details)!;
+        Point point = details.TranslatePoint(new Point(10, 10), root)!.Value;
         if (root is Window popupWindow)
         {
             popupWindow.MouseDown(point, MouseButton.Left);
@@ -415,7 +415,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void SwitchingStyleClosesTheMenu()
     {
-        var (menu, _, window) = Show(wrap: true, configure: m =>
+        (PageMenu menu, _, Window window) = Show(wrap: true, configure: m =>
         {
             m.Style = PageMenuStyle.MenuButton;
             m.Placement = ScreenPlacement.BottomRight;
@@ -436,13 +436,13 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TreeModeExpandsTheCurrentPage()
     {
-        var (menu, _, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, _, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
 
         Assert.Contains(":tree", menu.Classes);
-        var home = Item<HomePage>(menu);
+        PageMenuItem home = Item<HomePage>(menu);
         Assert.True(home.HasChildren);
         Assert.True(home.IsExpanded);
-        var index = menu.Items.IndexOf(home);
+        int index = menu.Items.IndexOf(home);
         Assert.Equal(typeof(ItemPage), menu.Items[index + 1].PageType);
         Assert.Equal(1, menu.Items[index + 1].Depth);
         Assert.Same(home, menu.Items[index + 1].Parent);
@@ -451,15 +451,15 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ExpandingAndCollapsingShowsAndHidesChildren()
     {
-        var (menu, view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
-        var settings = Item<SettingsPage>(menu);
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        PageMenuItem settings = Item<SettingsPage>(menu);
         Assert.False(settings.IsExpanded);
         Assert.DoesNotContain(typeof(GeneralSettingsPage), Items(menu));
 
         settings.IsExpanded = true;
-        var index = menu.Items.IndexOf(settings);
+        int index = menu.Items.IndexOf(settings);
         Assert.Equal(
-            [typeof(GeneralSettingsPage), typeof(AdvancedSettingsPage), typeof(AboutPage)],
+            [typeof(AboutPage), typeof(AdvancedSettingsPage), typeof(GeneralSettingsPage)],
             menu.Items.Skip(index + 1).Take(3).Select(i => i.PageType)
         );
 
@@ -471,9 +471,9 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TheExpanderDoesntNavigate()
     {
-        var (menu, view, window) = Show(configure: m => m.Mode = PageMenuMode.Tree);
-        var settings = Item<SettingsPage>(menu);
-        var chevron = Container(menu, settings).GetVisualDescendants().OfType<PageMenuChevron>().Single();
+        (PageMenu menu, PageView view, Window window) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        PageMenuItem settings = Item<SettingsPage>(menu);
+        PageMenuChevron chevron = Container(menu, settings).GetVisualDescendants().OfType<PageMenuChevron>().Single();
 
         Click(window, chevron);
 
@@ -485,9 +485,9 @@ public class PageMenuTests
     [AvaloniaFact]
     public void ArrowKeysExpandAndCollapse()
     {
-        var (menu, view, window) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, PageView view, Window window) = Show(configure: m => m.Mode = PageMenuMode.Tree);
         view.NavigateTo<SettingsPage>();
-        var settings = Item<SettingsPage>(menu);
+        PageMenuItem settings = Item<SettingsPage>(menu);
         Assert.True(settings.IsExpanded);
         Assert.Equal(typeof(GeneralSettingsPage), menu.SelectedItem?.PageType);
         Container(menu, menu.SelectedItem!).Focus();
@@ -511,12 +511,12 @@ public class PageMenuTests
     [AvaloniaFact]
     public void PickingADeepItemNavigatesTheNestedView()
     {
-        var (menu, view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
         Item<SettingsPage>(menu).IsExpanded = true;
 
         menu.SelectedItem = Item<AdvancedSettingsPage>(menu, under: typeof(SettingsPage));
 
-        var settings = Assert.IsType<SettingsPage>(Shown(view));
+        SettingsPage settings = Assert.IsType<SettingsPage>(Shown(view));
         Assert.IsType<AdvancedSettingsPage>(Shown(settings.Children));
         Assert.False(view.CanGoBack);
         Assert.Same(Item<AdvancedSettingsPage>(menu, under: typeof(SettingsPage)), menu.SelectedItem);
@@ -530,7 +530,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void TheItemUnderTheParentItWasReachedFromIsSelected()
     {
-        var (menu, view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
 
         view.NavigateTo<DetailsPage>();
         view.PageControlDataContext.NavigateToChild<ItemPage>();
@@ -539,7 +539,7 @@ public class PageMenuTests
 
         // The same page under its other parent: only where it sits in the tree changes.
         Item<HomePage>(menu).IsExpanded = true;
-        var item = view.PageControlDataContext.ActivePage;
+        PageSystem.Page? item = view.PageControlDataContext.ActivePage;
         menu.SelectedItem = Item<ItemPage>(menu, under: typeof(HomePage));
         Assert.Same(item, view.PageControlDataContext.ActivePage);
         Assert.Equal(HomePage.PageId, view.PageControlDataContext.CurrentParentPage);
@@ -549,10 +549,10 @@ public class PageMenuTests
     [AvaloniaFact]
     public void CollapsingHighlightsTheCollapsedAncestor()
     {
-        var (menu, view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, PageView view, _) = Show(configure: m => m.Mode = PageMenuMode.Tree);
         view.NavigateTo<DetailsPage>();
         view.PageControlDataContext.NavigateToChild<ItemPage>();
-        var details = Item<DetailsPage>(menu);
+        PageMenuItem details = Item<DetailsPage>(menu);
 
         details.IsExpanded = false;
 
@@ -563,7 +563,7 @@ public class PageMenuTests
     [AvaloniaFact]
     public void BarsListOnlyTheTopLevelOfATree()
     {
-        var (menu, _, _) = Show(width: 400, configure: m => m.Mode = PageMenuMode.Tree);
+        (PageMenu menu, _, _) = Show(width: 400, configure: m => m.Mode = PageMenuMode.Tree);
 
         Assert.Equal(ScreenPlacement.BottomCenter, menu.ActualPlacement);
         Assert.DoesNotContain(":tree", menu.Classes);

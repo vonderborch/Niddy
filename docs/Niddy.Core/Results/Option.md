@@ -1,6 +1,6 @@
 # Option
 
-`Niddy.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Option.cs)
+`Niddy.Core.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Option.cs)
 
 `Option<T>` is a value that may be missing. Use it where "not there" is normal and needs no explanation (a lookup, a first match). When the caller should know *why* something failed, use [`Result<T>`](Result.md). It's a readonly struct; `default` is None.
 
@@ -36,7 +36,7 @@
 ## Examples
 
 ```csharp
-using Niddy.Results;
+using Niddy.Core.Results;
 
 Option<User> FindByEmail(string email) => _users.FirstOrNone(u => u.Email == email);
 
@@ -45,7 +45,7 @@ string greeting = FindByEmail(email)
     .Match(name => $"Welcome back, {name}", () => "Welcome!");
 
 Option<int> ParsePort(string? text) =>
-    int.TryParse(text, out var port) && port is > 0 and < 65536 ? port : Option.None;
+    int.TryParse(text, out int port) && port is > 0 and < 65536 ? port : Option.None;
 
 int port = ParsePort(args.ElementAtOrDefault(0))
     .Or(() => ParsePort(Environment.GetEnvironmentVariable("PORT")))

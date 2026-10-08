@@ -32,14 +32,14 @@ Equality compares the sources.
 ## Example
 
 ```csharp
-var icon = new PageIcon(
+PageIcon icon = new(
     PageIconSource.FromData("M3 12 L12 3 L21 12 V21 H3 Z", 24),       // scalable, designed at 24
     PageIconSource.FromUri("avares://MyApp/Assets/home-16.png", 16),  // pixel-perfect at 16
     PageIconSource.FromUri("avares://MyApp/Assets/home-32.png", 32)); // used at 16 on a 2× screen
 
 PageRegistry.Register<HomePage>(icon: icon);
 
-var best = icon.GetSource(size: 16, scaling: 2);   // home-32.png
+PageIconSource best = icon.GetSource(size: 16, scaling: 2);   // home-32.png
 ```
 
 ## See also

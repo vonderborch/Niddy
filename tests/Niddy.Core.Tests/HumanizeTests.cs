@@ -1,5 +1,5 @@
 using System.Globalization;
-using Niddy.Helpers;
+using Niddy.Core.Text;
 
 namespace Niddy.Core.Tests;
 
@@ -41,7 +41,7 @@ public class HumanizeTests
     [Fact]
     public void RelativeTime_DescribesPastAndFuture()
     {
-        var now = new DateTimeOffset(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
+        DateTimeOffset now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
 
         Assert.Equal("just now", Humanize.RelativeTime(now.AddSeconds(-10), now));
         Assert.Equal("5 minutes ago", Humanize.RelativeTime(now.AddMinutes(-5), now));

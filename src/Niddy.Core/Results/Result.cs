@@ -1,4 +1,4 @@
-namespace Niddy.Results;
+namespace Niddy.Core.Results;
 
 /// <summary>
 /// The outcome of an operation with no value: success, or failure with an <see cref="Results.Error"/>. Return it
@@ -18,18 +18,18 @@ public readonly struct Result : IEquatable<Result>
 
     private Result(bool isSuccess, Error? error)
     {
-        _isSuccess = isSuccess;
-        _error = error;
+        this._isSuccess = isSuccess;
+        this._error = error;
     }
 
     /// <summary>Whether the operation succeeded.</summary>
-    public bool IsSuccess => _isSuccess;
+    public bool IsSuccess => this._isSuccess;
 
     /// <summary>Whether the operation failed.</summary>
-    public bool IsFailure => !_isSuccess;
+    public bool IsFailure => !this._isSuccess;
 
     /// <summary>Why the operation failed, or null if it succeeded.</summary>
-    public Error? Error => _isSuccess ? null : _error ?? Error.Uninitialized;
+    public Error? Error => this._isSuccess ? null : this._error ?? Error.Uninitialized;
 
     /// <summary>A successful result.</summary>
     public static Result Success() => new(true, null);
@@ -112,10 +112,12 @@ public readonly struct Result : IEquatable<Result>
     /// <summary>Returns the first failure, or success if every result succeeded.</summary>
     public static Result Combine(params IEnumerable<Result> results)
     {
-        foreach (var result in results)
+        foreach (Result result in results)
         {
             if (result.IsFailure)
+            {
                 return result;
+            }
         }
 
         return Success();
@@ -123,48 +125,56 @@ public readonly struct Result : IEquatable<Result>
 
     /// <summary>Returns <paramref name="onSuccess"/> or <paramref name="onFailure"/>'s value, depending on the outcome.</summary>
     public TOut Match<TOut>(Func<TOut> onSuccess, Func<Error, TOut> onFailure) =>
-        _isSuccess ? onSuccess() : onFailure(Error!);
+        this._isSuccess ? onSuccess() : onFailure(this.Error!);
 
     /// <summary>Runs <paramref name="next"/> if this succeeded; otherwise keeps this failure.</summary>
-    public Result Bind(Func<Result> next) => _isSuccess ? next() : this;
+    public Result Bind(Func<Result> next) => this._isSuccess ? next() : this;
 
     /// <summary>Runs <paramref name="next"/> if this succeeded; otherwise keeps this failure.</summary>
-    public Result<T> Bind<T>(Func<Result<T>> next) => _isSuccess ? next() : Result<T>.Failure(Error!);
+    public Result<T> Bind<T>(Func<Result<T>> next) => this._isSuccess ? next() : Result<T>.Failure(this.Error!);
 
     /// <summary>Runs <paramref name="action"/> if this succeeded, and returns this result.</summary>
     public Result OnSuccess(Action action)
     {
-        if (_isSuccess)
+        if (this._isSuccess)
+        {
             action();
+        }
+
         return this;
     }
 
     /// <summary>Runs <paramref name="action"/> with the error if this failed, and returns this result.</summary>
     public Result OnFailure(Action<Error> action)
     {
-        if (!_isSuccess)
-            action(Error!);
+        if (!this._isSuccess)
+        {
+            action(this.Error!);
+        }
+
         return this;
     }
 
     /// <summary>Throws <see cref="ResultException"/> if this failed.</summary>
     public void ThrowIfFailure()
     {
-        if (!_isSuccess)
-            throw new ResultException(Error!);
+        if (!this._isSuccess)
+        {
+            throw new ResultException(this.Error!);
+        }
     }
 
     /// <summary>A failed result.</summary>
     public static implicit operator Result(Error error) => Failure(error);
 
     /// <inheritdoc />
-    public bool Equals(Result other) => _isSuccess == other._isSuccess && Equals(Error, other.Error);
+    public bool Equals(Result other) => this._isSuccess == other._isSuccess && Equals(this.Error, other.Error);
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is Result other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(_isSuccess, Error);
+    public override int GetHashCode() => HashCode.Combine(this._isSuccess, this.Error);
 
     /// <summary>Whether two results are equal.</summary>
     public static bool operator ==(Result left, Result right) => left.Equals(right);
@@ -173,7 +183,7 @@ public readonly struct Result : IEquatable<Result>
     public static bool operator !=(Result left, Result right) => !left.Equals(right);
 
     /// <inheritdoc />
-    public override string ToString() => _isSuccess ? "Success" : $"Failure({Error})";
+    public override string ToString() => this._isSuccess ? "Success" : $"Failure({this.Error})";
 }
 
 /// <summary>
@@ -185,9 +195,9 @@ public readonly struct Result : IEquatable<Result>
 /// <example>
 /// <code>
 /// Result&lt;int&gt; ParseAge(string text) =>
-///     int.TryParse(text, out var age) &amp;&amp; age >= 0 ? age : new Error("Enter a whole number.", "Invalid");
+///     int.TryParse(text, out int age) &amp;&amp; age >= 0 ? age : new Error("Enter a whole number.", "Invalid");
 ///
-/// var message = ParseAge(input).Match(age => $"Age {age}", error => error.Message);
+/// string message = ParseAge(input).Match(age => $"Age {age}", error => error.Message);
 /// </code>
 /// </example>
 public readonly struct Result<T> : IEquatable<Result<T>>
@@ -198,22 +208,22 @@ public readonly struct Result<T> : IEquatable<Result<T>>
 
     private Result(bool isSuccess, T value, Error? error)
     {
-        _isSuccess = isSuccess;
-        _value = value;
-        _error = error;
+        this._isSuccess = isSuccess;
+        this._value = value;
+        this._error = error;
     }
 
     /// <summary>Whether the operation succeeded.</summary>
-    public bool IsSuccess => _isSuccess;
+    public bool IsSuccess => this._isSuccess;
 
     /// <summary>Whether the operation failed.</summary>
-    public bool IsFailure => !_isSuccess;
+    public bool IsFailure => !this._isSuccess;
 
     /// <summary>The value. Throws <see cref="ResultException"/> if the operation failed.</summary>
-    public T Value => _isSuccess ? _value : throw new ResultException(Error!);
+    public T Value => this._isSuccess ? this._value : throw new ResultException(this.Error!);
 
     /// <summary>Why the operation failed, or null if it succeeded.</summary>
-    public Error? Error => _isSuccess ? null : _error ?? Error.Uninitialized;
+    public Error? Error => this._isSuccess ? null : this._error ?? Error.Uninitialized;
 
     /// <summary>A successful result with <paramref name="value"/>.</summary>
     public static Result<T> Success(T value) => new(true, value, null);
@@ -231,82 +241,88 @@ public readonly struct Result<T> : IEquatable<Result<T>>
     /// <summary>Gets the value if the operation succeeded.</summary>
     public bool TryGetValue(out T value)
     {
-        value = _value;
-        return _isSuccess;
+        value = this._value;
+        return this._isSuccess;
     }
 
     /// <summary>Gets the value if the operation succeeded, or the error if it failed.</summary>
     public bool TryGetValue(out T value, out Error? error)
     {
-        value = _value;
-        error = Error;
-        return _isSuccess;
+        value = this._value;
+        error = this.Error;
+        return this._isSuccess;
     }
 
     /// <summary>The value, or <paramref name="fallback"/> if the operation failed.</summary>
-    public T GetValueOrDefault(T fallback) => _isSuccess ? _value : fallback;
+    public T GetValueOrDefault(T fallback) => this._isSuccess ? this._value : fallback;
 
     /// <summary>The value, or <c>default</c> if the operation failed.</summary>
-    public T? GetValueOrDefault() => _isSuccess ? _value : default;
+    public T? GetValueOrDefault() => this._isSuccess ? this._value : default;
 
     /// <summary>Returns <paramref name="onSuccess"/> or <paramref name="onFailure"/>'s value, depending on the outcome.</summary>
     public TOut Match<TOut>(Func<T, TOut> onSuccess, Func<Error, TOut> onFailure) =>
-        _isSuccess ? onSuccess(_value) : onFailure(Error!);
+        this._isSuccess ? onSuccess(this._value) : onFailure(this.Error!);
 
     /// <summary>Transforms the value if this succeeded; otherwise keeps this failure.</summary>
     public Result<TOut> Map<TOut>(Func<T, TOut> map) =>
-        _isSuccess ? Result<TOut>.Success(map(_value)) : Result<TOut>.Failure(Error!);
+        this._isSuccess ? Result<TOut>.Success(map(this._value)) : Result<TOut>.Failure(this.Error!);
 
     /// <summary>Transforms the error if this failed; otherwise keeps the value.</summary>
-    public Result<T> MapError(Func<Error, Error> map) => _isSuccess ? this : Failure(map(Error!));
+    public Result<T> MapError(Func<Error, Error> map) => this._isSuccess ? this : Failure(map(this.Error!));
 
     /// <summary>Runs <paramref name="next"/> with the value if this succeeded; otherwise keeps this failure.</summary>
     public Result<TOut> Bind<TOut>(Func<T, Result<TOut>> next) =>
-        _isSuccess ? next(_value) : Result<TOut>.Failure(Error!);
+        this._isSuccess ? next(this._value) : Result<TOut>.Failure(this.Error!);
 
     /// <summary>Runs <paramref name="next"/> with the value if this succeeded; otherwise keeps this failure.</summary>
-    public Result Bind(Func<T, Result> next) => _isSuccess ? next(_value) : Result.Failure(Error!);
+    public Result Bind(Func<T, Result> next) => this._isSuccess ? next(this._value) : Result.Failure(this.Error!);
 
     /// <summary>Transforms the value asynchronously if this succeeded; otherwise keeps this failure.</summary>
     public async Task<Result<TOut>> MapAsync<TOut>(Func<T, Task<TOut>> map) =>
-        _isSuccess ? Result<TOut>.Success(await map(_value)) : Result<TOut>.Failure(Error!);
+        this._isSuccess ? Result<TOut>.Success(await map(this._value)) : Result<TOut>.Failure(this.Error!);
 
     /// <summary>Runs <paramref name="next"/> with the value asynchronously if this succeeded; otherwise keeps this failure.</summary>
     public Task<Result<TOut>> BindAsync<TOut>(Func<T, Task<Result<TOut>>> next) =>
-        _isSuccess ? next(_value) : Task.FromResult(Result<TOut>.Failure(Error!));
+        this._isSuccess ? next(this._value) : Task.FromResult(Result<TOut>.Failure(this.Error!));
 
     /// <summary>Keeps the value if it satisfies <paramref name="predicate"/>; otherwise fails with <paramref name="error"/>.</summary>
     public Result<T> Ensure(Func<T, bool> predicate, Error error) =>
-        !_isSuccess || predicate(_value) ? this : Failure(error);
+        !this._isSuccess || predicate(this._value) ? this : Failure(error);
 
     /// <summary>Runs <paramref name="action"/> with the value if this succeeded, and returns this result.</summary>
     public Result<T> OnSuccess(Action<T> action)
     {
-        if (_isSuccess)
-            action(_value);
+        if (this._isSuccess)
+        {
+            action(this._value);
+        }
+
         return this;
     }
 
     /// <summary>Runs <paramref name="action"/> with the error if this failed, and returns this result.</summary>
     public Result<T> OnFailure(Action<Error> action)
     {
-        if (!_isSuccess)
-            action(Error!);
+        if (!this._isSuccess)
+        {
+            action(this.Error!);
+        }
+
         return this;
     }
 
     /// <summary>The value as an <see cref="Option{T}"/>: some if this succeeded, none if it failed.</summary>
-    public Option<T> ToOption() => _isSuccess ? Option<T>.Some(_value) : Option<T>.None;
+    public Option<T> ToOption() => this._isSuccess ? Option<T>.Some(this._value) : Option<T>.None;
 
     /// <summary>This result without its value.</summary>
-    public Result ToResult() => _isSuccess ? Result.Success() : Result.Failure(Error!);
+    public Result ToResult() => this._isSuccess ? Result.Success() : Result.Failure(this.Error!);
 
     /// <summary>Deconstructs into whether it succeeded, the value and the error.</summary>
     public void Deconstruct(out bool isSuccess, out T? value, out Error? error)
     {
-        isSuccess = _isSuccess;
-        value = _isSuccess ? _value : default;
-        error = Error;
+        isSuccess = this._isSuccess;
+        value = this._isSuccess ? this._value : default;
+        error = this.Error;
     }
 
     /// <summary>A successful result with <paramref name="value"/>.</summary>
@@ -320,14 +336,14 @@ public readonly struct Result<T> : IEquatable<Result<T>>
 
     /// <inheritdoc />
     public bool Equals(Result<T> other) =>
-        _isSuccess == other._isSuccess
-        && (_isSuccess ? EqualityComparer<T>.Default.Equals(_value, other._value) : Equals(Error, other.Error));
+        this._isSuccess == other._isSuccess
+        && (this._isSuccess ? EqualityComparer<T>.Default.Equals(this._value, other._value) : Equals(this.Error, other.Error));
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is Result<T> other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => _isSuccess ? HashCode.Combine(true, _value) : HashCode.Combine(false, Error);
+    public override int GetHashCode() => this._isSuccess ? HashCode.Combine(true, this._value) : HashCode.Combine(false, this.Error);
 
     /// <summary>Whether two results are equal.</summary>
     public static bool operator ==(Result<T> left, Result<T> right) => left.Equals(right);
@@ -336,7 +352,7 @@ public readonly struct Result<T> : IEquatable<Result<T>>
     public static bool operator !=(Result<T> left, Result<T> right) => !left.Equals(right);
 
     /// <inheritdoc />
-    public override string ToString() => _isSuccess ? $"Success({_value})" : $"Failure({Error})";
+    public override string ToString() => this._isSuccess ? $"Success({this._value})" : $"Failure({this.Error})";
 }
 
 /// <summary>Thrown when the value of a failed <see cref="Result{T}"/> is read, or by <see cref="Result.ThrowIfFailure"/>.</summary>

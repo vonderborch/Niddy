@@ -1,17 +1,17 @@
 # AppPaths
 
-`Niddy.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/AppPaths.cs)
+`Niddy.Core.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/AppPaths.cs)
 
 `sealed record AppPaths(string Data, string Config, string Cache, string Logs)`: where an app keeps its files, following each platform's conventions. Nothing is created until you call `EnsureCreated()`.
 
 | Platform | Data / Config | Cache | Logs |
 |---|---|---|---|
 | Windows | `%APPDATA%\[Organization\]App` | `%LOCALAPPDATA%\[Organization\]App\Cache` | `%LOCALAPPDATA%\[Organization\]App\Logs` |
-| macOS | `~/Library/Application Support/App` | `~/Library/Caches/App` | `~/Library/Logs/App` |
-| Linux | `$XDG_DATA_HOME/app` / `$XDG_CONFIG_HOME/app` | `$XDG_CACHE_HOME/app` | `$XDG_STATE_HOME/app/logs` |
-| Android, iOS, browser | subfolders of the app's local data folder | | |
+| macOS, Mac Catalyst | `~/Library/Application Support/App` | `~/Library/Caches/App` | `~/Library/Logs/App` |
+| Linux, FreeBSD | `$XDG_DATA_HOME/app` / `$XDG_CONFIG_HOME/app` | `$XDG_CACHE_HOME/app` | `$XDG_STATE_HOME/app/logs` |
+| Android, iOS, browser, WASI | subfolders of the app's local data folder | | |
 
-`Config` equals `Data` except on Linux. The folder name is lowercased on Linux.
+`Config` equals `Data` except on Linux and FreeBSD, where the folder name is also lowercased (spaces become `-`). The platform comes from [`Platform.Info`](../SystemInfo/Platform.md), so `For` throws `UnsupportedOperatingSystemException` if the app declared its supported OSes and this one isn't among them.
 
 ## API
 
@@ -28,14 +28,14 @@
 ## Examples
 
 ```csharp
-using Niddy.IO;
+using Niddy.Core.IO;
 
-var paths = AppPaths.For("MyApp", "Contoso").EnsureCreated();
-var dbPath = Path.Combine(paths.Data, "library.db");
-var settingsPath = Path.Combine(paths.Config, "settings.json");
+AppPaths paths = AppPaths.For("MyApp", "Contoso").EnsureCreated();
+string dbPath = Path.Combine(paths.Data, "library.db");
+string settingsPath = Path.Combine(paths.Config, "settings.json");
 
 // Portable build: keep everything next to the executable
-var portable = AppPaths.Portable(AppContext.BaseDirectory).EnsureCreated();
+AppPaths portable = AppPaths.Portable(AppContext.BaseDirectory).EnsureCreated();
 ```
 
 In a [`NiddyApp`](../../Niddy.Avalonia/Hosting/NiddyApp.md), use `NiddyApp.Current!.Paths`, built from `options.AppName` and `options.Organization`.

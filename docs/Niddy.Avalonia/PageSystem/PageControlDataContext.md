@@ -13,7 +13,7 @@ Every navigation respects `LockToCurrentPage` and lets the current page cancel i
 | Member | Description |
 |---|---|
 | `PageId? ParentPage` | Whose child pages this view shows; null for top-level. |
-| `IReadOnlyList<PageRegistration> AvailablePages` | The child pages of `ParentPage`, or the top-level pages. Updates as pages are registered. |
+| `IReadOnlyList<PageRegistration> AvailablePages` | The child pages of `ParentPage`, or the top-level pages, in [`PageRegistry.Sort`](PageRegistry.md#ordering) order. Updates as pages are registered or the sort changes. |
 | `PageRegistration? CurrentPage`, `PageId? CurrentPageId`, `string? CurrentPageName` | Null before the first navigation, or for a page pushed without a registration. |
 | `PageId? CurrentParentPage` | The parent the current page was reached from, or its only parent. |
 | `Page? ActivePage` | The page instance being shown. |
@@ -47,14 +47,14 @@ A simple title bar in the app's layout, bound to the app's page view:
 ```csharp
 options.Layout = pages =>
 {
-    var back = new Button { Content = "Back" };
+    Button back = new() { Content = "Back" };
     back.Click += (_, _) => pages.GoBack();
     back.Bind(Visual.IsVisibleProperty, new Binding(nameof(PageControlDataContext.CanGoBack)) { Source = pages.PageControlDataContext });
 
-    var title = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+    TextBlock title = new() { VerticalAlignment = VerticalAlignment.Center };
     title.Bind(TextBlock.TextProperty, new Binding(nameof(PageControlDataContext.CurrentPageName)) { Source = pages.PageControlDataContext });
 
-    var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { back, title } };
+    StackPanel bar = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { back, title } };
     DockPanel.SetDock(bar, Dock.Top);
     return new DockPanel { Children = { bar, pages } };
 };
@@ -65,7 +65,7 @@ For a list of pages, use [PageMenu](PageMenu.md) rather than binding `AvailableP
 Locking navigation during a critical operation:
 
 ```csharp
-var nav = PageControlDataContext;
+PageControlDataContext nav = PageControlDataContext;
 nav.LockToCurrentPage = true;
 try { await PageDataContext.MigrateAsync(); }
 finally { nav.LockToCurrentPage = false; }

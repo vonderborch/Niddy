@@ -11,6 +11,10 @@
     <RepositoryUrl>https://github.com/vonderborch/Niddy</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Builds must be warning-free, including missing or broken XML docs. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Code style rules in .editorconfig set to warning (explicit types, target-typed new) fail the build too. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <!-- CI sets Version from the GitHub release tag via -p:Version. Local builds get a dev version. -->

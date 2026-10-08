@@ -6,11 +6,11 @@ This one file tells you how to use the whole library in an app. It's written for
 
 | Package | Use it for | Namespaces |
 |---|---|---|
-| `Niddy.Core` | Anything (no UI): results, settings, logging, paths, secure storage, threading, helpers | `Niddy.Helpers`, `Niddy.IO`, `Niddy.Logging`, `Niddy.Results`, `Niddy.Security`, `Niddy.Settings`, `Niddy.Threading` |
-| `Niddy.Avalonia` | Avalonia apps: app hosting, pages, dialogs, toasts, state memory, converters | `Niddy.Avalonia.<Folder>`: `Hosting`, `PageSystem`, `Dialogs`, `Toast`, `State`, `Converters`, `DataContexts`, `FilePicker`, `Layout`, `Theme`, `Utilities`; `ScreenPlacement` is in `Niddy.Avalonia` |
+| `Niddy.Core` | Anything (no UI): results, settings, logging, paths, files, archives, JSON, retry, secure storage, threading, platform info | Namespaces follow the folders: `Niddy.Core` (`UrlLauncher`, `DisposeIfPossible`), `.Collections`, `.IO`, `.IO.Archives`, `.IO.Backups`, `.Logging`, `.Logging.Files`, `.Logging.Batching`, `.Resilience`, `.Results`, `.Security`, `.Serialization`, `.Settings`, `.SystemInfo`, `.Text`, `.Threading` |
+| `Niddy.Avalonia` | Avalonia apps: app hosting, pages, dialogs, toasts, state memory, converters | Namespaces follow the folders: `Niddy.Avalonia` (`FilePicker`, `UriLauncher`, `WindowNotification`, `ScreenPlacement`), `.Hosting`, `.PageSystem` (everything for pages: `Page`, `PageView`, `[PageRegistration]`, `PageRegistry`, `[PageIcon]`, `PageMenu`), `.Dialogs`, `.Toasts`, `.State`, `.Converters`, `.DataContexts`, `.Layout`, `.Theme` |
 | `Niddy.Avalonia.Generators` | Compile-time registration of `[PageRegistration]` pages. **Without it, `[PageRegistration]` does nothing.** | generates `Niddy.Generated.Pages_<Assembly>` |
 
-XAML: `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every `Niddy.Avalonia` folder **except `Utilities`**. For the `Page` root element, examples use `xmlns:pageSystem="clr-namespace:Niddy.Avalonia.PageSystem;assembly=Niddy.Avalonia"`.
+XAML: `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every public `Niddy.Avalonia` namespace. For the `Page` root element, examples use `xmlns:pageSystem="clr-namespace:Niddy.Avalonia.PageSystem;assembly=Niddy.Avalonia"`.
 
 ---
 
@@ -32,14 +32,14 @@ XAML: `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every `Niddy.A
 // App.cs
 using Niddy.Avalonia.Hosting;
 using Niddy.Avalonia.PageSystem;
-using Niddy.IO;
-using Niddy.Logging;
+using Niddy.Core.IO;
+using Niddy.Core.Logging;
 
 public class App : NiddyApp
 {
     protected override void Configure(NiddyAppOptions options)
     {
-        var paths = AppPaths.For("MyApp").EnsureCreated();     // NiddyApp.Paths isn't usable inside Configure
+        AppPaths paths = AppPaths.For("MyApp").EnsureCreated();     // NiddyApp.Paths isn't usable inside Configure
         options.AppName = "MyApp";
         options.Title = "My App";
         options.StartingPage = HomePage.PageId;                 // required
@@ -59,7 +59,7 @@ public static class Program
 }
 ```
 
-Other `NiddyAppOptions` settings: `Organization`, `Mode` (`AppMode.Auto|Desktop|Mobile`), `PageTransition`, `HandleBackRequests`, `UseFluentTheme`, `Theme` (`AppTheme?`), `DialogMode`, `ToastPlacement`, `ToastNarrowPlacement`, `ToastDuration`, `Width/Height/MinWidth/MinHeight`, `MobilePreviewWidth/Height`, `RememberWindowState`, `ConfigureWindow`, `HandleUnhandledExceptions`, `ShowUnhandledExceptionDialog` and `OnUnhandledException`. `options.Mode = AppMode.Mobile` on desktop previews the phone layout in a 390×844 window.
+Other `NiddyAppOptions` settings: `Organization`, `Mode` (`AppMode.Auto|Desktop|Mobile`), `PageTransition`, `HandleBackRequests`, `UseFluentTheme`, `Theme` (`AppTheme?`), `DialogMode`, `ToastPlacement`, `ToastNarrowPlacement`, `ToastDuration`, `Width/Height/MinWidth/MinHeight`, `MobilePreviewWidth/Height`, `RememberWindowState`, `ConfigureWindow`, `HandleUnhandledExceptions`, `ShowUnhandledExceptionDialog`, `OnUnhandledException`, and `PageSort` / `PageSortDescending` (menu order, see below). `options.Mode = AppMode.Mobile` on desktop previews the phone layout in a 390×844 window.
 
 At runtime: `NiddyApp.Current!.Shell.Pages` (the root `PageView`), `.Shell.Toasts`, `.Shell.Dialogs`, `NiddyApp.Current.Paths`, `NiddyApp.CurrentMode`.
 
@@ -70,9 +70,11 @@ Details: [NiddyApp](Niddy.Avalonia/Hosting/NiddyApp.md), [NiddyAppOptions](Niddy
 ## Pages
 
 ```csharp
+using Niddy.Avalonia.DataContexts;
 using Niddy.Avalonia.PageSystem;
+using Niddy.Core.IO;
 
-[PageRegistration(DisplayName = "Home", Shortcut = "Primary+1")]           // Primary = Cmd on macOS, Ctrl elsewhere
+[PageRegistration(DisplayName = "Home", Shortcut = "Primary+1")]           // Primary = Cmd on Apple platforms, Ctrl elsewhere
 [PageIcon("M10,20 V14 H14 V20 H19 V12 H22 L12,3 2,12 H5 V20 Z", Size = 24)] // SVG path data, or Source = "avares://…"
 public partial class HomePage : Page<MainDataContext, HomePageDataContext>
 {
@@ -107,13 +109,16 @@ public sealed class HomePageDataContext(AppPaths paths) : DataContextBase { /* R
   - `Parents` / `Children` (build the page tree from either end).
   - `TopLevel`.
   - `Shortcut`.
+  - `SortKey` (sorts by this instead of the display name, e.g. `"0"` for first, `"zzz"` for last).
 - **Navigation, from inside a page:** `NavigateTo<T>(addToBackStack = true, parameter = null)`, `NavigateTo(PageId, …)`, `NavigateToChild<T>()`, `NavigateToSibling<T>()`, `NavigateToParent()`, `Push(Page)`, `GoBack()`, `CanGoBack`. Each returns `bool`.
 - **Navigation, from outside a page:** use `NiddyApp.Current!.Shell.Pages` (a `PageView`) with the same methods.
 - **Guards:** override `OnNavigatingFrom(PageNavigatingFromEventArgs e)`, set `e.Cancel = true`, ask the user, then call `e.Continue()`.
 - **Clean-up:** override `OnClosed()` (never called for kept-alive pages).
 - **Nested pages:** put a `<pageSystem:PageView StartingPage="{x:Type local:ChildPage}" />` inside a page. It shows that page's children.
 - **Menus:** `PageMenu` lists registered pages (`Mode`: `Flat` for one level, or `Tree`). It turns into a bottom navigation bar on mobile or narrow windows.
-- **Manual registration** (no generator, or for DI factories): `PageRegistry.Register<TPage>(displayName, keepAlive, parents, children, topLevel, icon, shortcut)` or `Register(() => new TPage(deps), …)`.
+- **Order:** menus and `AvailablePages` list pages alphabetically by `SortKey` (the display name unless set), **including a parent's `Children`**. `PageRegistry.Sort` (or `options.PageSort`) takes any `Comparison<PageRegistration>`, `PageRegistry.SortDescending` reverses it, and `PageRegistry.DeclaredOrder` keeps the declared order (registration order for top-level pages, which is file-path order with the generator).
+- **Manual registration** (no generator, or for DI factories): `PageRegistry.Register<TPage>(displayName, keepAlive, parents, children, topLevel, icon, shortcut, sortKey)` or `Register(() => new TPage(deps), …)`.
+- **Tests:** `new AppShell(new NiddyAppOptions { StartingPage = HomePage.PageId, AppDataContext = … })` builds the app's page view, toast host and dialog host without a `NiddyApp`. Put it in a `Window` in a headless test.
 - **Plugins:** pages in assemblies loaded later (`Assembly.LoadFrom`) register themselves if the plugin uses the generator. `PageRegistry.PagesChanged` may fire off the UI thread.
 
 **Avalonia 12 name clash:** a class deriving from the *non-generic* `Page` in a file with `using Avalonia.Controls;` must add `using Page = Niddy.Avalonia.PageSystem.Page;`.
@@ -138,7 +143,7 @@ Every dialog is `await Dialog.<Kind>.Open(parent, …)`, where `parent` is `this
 | `Exception.Open(p, title, description, exception, reportIssueLink)` | `Task` |
 | `Color.Open(p, title, initialColor = null)` | `Task<Color?>` |
 | `Markdown.Open(p, title, markdown, okButtonText = "OK", cancelButtonText = null)` | `Task<bool>` |
-| `Table.Open(p, title, description, items, columns = null)` / `Table.Pick(…)` | `Task` / `Task<T?>`; columns are `new TableColumn<T>("Header", x => x.Value) { Format = … }` |
+| `Table.Open(p, title, description, items, columns = null)` / `Table.Pick(…)` | `Task` / `Task<T?>`; columns are `new TableColumn<T>("Header", x => x.Value) { Format = …, AlignRight = true, Width = … }` |
 | `Web.Open(p, title, uri, closeWhen: u => …, openInBrowserText = "Open in Browser")` | `Task<Uri?>`: the matched address, or the last address shown. Best with `displayMode: DialogDisplayMode.Window`. |
 | `Web.OpenHtml(p, title, html, baseAddress = null, closeWhen = null)` | `Task<Uri?>` |
 | `Show(p, new MyDialog(…), maxWidth = 500)` | `Task<TResult>` for a custom dialog |
@@ -151,7 +156,7 @@ Details: [Dialog](Niddy.Avalonia/Dialogs/Dialog.md), [DialogBase](Niddy.Avalonia
 
 ---
 
-## Toasts (`Niddy.Avalonia.Toast`)
+## Toasts (`Niddy.Avalonia.Toasts`)
 
 ```csharp
 Toast.Show(this, "Saved", ToastType.Success);                                // Info | Success | Warning | Error
@@ -159,15 +164,15 @@ Toast.Show(this, "File deleted", actionText: "Undo", action: () => Restore(file)
 Toast.Show(this, "Offline", ToastType.Error, duration: TimeSpan.Zero);       // stays until dismissed
 Toast.Show(this, $"Synced {n}", key: "sync");                                 // same key updates in place
 
-var t = Toast.ShowProgress(this, "Uploading…", isIndeterminate: false, cancelText: "Cancel", cancel: cts.Cancel);
+ToastHandle t = Toast.ShowProgress(this, "Uploading…", isIndeterminate: false, cancelText: "Cancel", cancel: cts.Cancel);
 t.Report(0.5);                         // progress 0–1 (not 0–100)
 t.Update("Almost done…");
 t.Complete("Uploaded");                // or t.Complete("Failed", ToastType.Error); or t.Dismiss();
 ```
 
-Call `Show`/`ShowProgress` on the UI thread. `ToastHandle` methods are safe from any thread. Identical toasts merge with a "×N" count. Defaults: 3 s, or 6 s with an action.
+Call `Show`/`ShowProgress` on the UI thread. The host is the nearest `ToastHost` above `source` (logical, then visual), else the `NiddyApp` shell's. Without either they throw. `ToastHandle` methods are safe from any thread. Identical toasts merge with a "×N" count. Defaults: 3 s, or 6 s with an action.
 
-Details: [Toast](Niddy.Avalonia/Toast/Toast.md), [ToastHandle](Niddy.Avalonia/Toast/ToastHandle.md), [ToastHost](Niddy.Avalonia/Toast/ToastHost.md).
+Details: [Toast](Niddy.Avalonia/Toasts/Toast.md), [ToastHandle](Niddy.Avalonia/Toasts/ToastHandle.md), [ToastHost](Niddy.Avalonia/Toasts/ToastHost.md).
 
 ---
 
@@ -203,12 +208,12 @@ Details: [UiStateStore](Niddy.Avalonia/State/UiStateStore.md), [WindowMemory](Ni
 ## Files, links and attention
 
 ```csharp
-using var file = await FilePicker.OpenFile(this, "Open", [FilePickerFileTypes.ImageAll]);   // works everywhere
-await using var stream = await file!.OpenReadAsync();
+using IStorageFile? file = await FilePicker.OpenFile(this, "Open", [FilePickerFileTypes.ImageAll]);   // works everywhere
+await using Stream stream = await file!.OpenReadAsync();
 
 string? folder = await FilePicker.OpenFolderPath(this);   // *Path variants: desktop only (null elsewhere)
 
-await UriLauncher.TryLaunchAsync(this, "https://example.com");   // Niddy.Avalonia.Utilities; returns bool
+await UriLauncher.TryLaunchAsync(this, "https://example.com");   // namespace Niddy.Avalonia; returns bool
 WindowNotification.RequestAttention();                            // bounce the dock / flash the taskbar; desktop only
 ```
 
@@ -216,7 +221,7 @@ WindowNotification.RequestAttention();                            // bounce the 
 
 ## Unhandled exceptions
 
-`NiddyApp` installs `GlobalExceptionHandler`. It logs every unhandled exception to `options.LoggerFactory`. UI-thread exceptions show `Dialog.Exception`, and the app keeps running. To customize, use `options.OnUnhandledException = e => { e.Handled = true; }` or `e.ShowDialog = false`. For exceptions you catch yourself in fire-and-forget code, call `GlobalExceptionHandler.Report(ex)`.
+`NiddyApp` installs `GlobalExceptionHandler`. It logs every unhandled exception to `options.LoggerFactory`. UI-thread exceptions show `Dialog.Exception`, and the app keeps running. To customize, use `options.OnUnhandledException = e => { e.Handled = true; }` or `e.ShowDialog = false`. For exceptions you catch yourself in fire-and-forget code, call `GlobalExceptionHandler.Report(ex)`. Niddy's own non-fatal failures (a URI that won't open, a failed UI-state save) are logged as warnings to the same factory, not thrown.
 
 Details: [GlobalExceptionHandler](Niddy.Avalonia/Hosting/GlobalExceptionHandler.md).
 
@@ -226,46 +231,93 @@ Details: [GlobalExceptionHandler](Niddy.Avalonia/Hosting/GlobalExceptionHandler.
 
 ```csharp
 // Paths: per-platform Data / Config / Cache / Logs folders
-var paths = AppPaths.For("MyApp", organization: "Contoso").EnsureCreated();   // or AppPaths.Portable(dir)
+AppPaths paths = AppPaths.For("MyApp", organization: "Contoso").EnsureCreated();   // or AppPaths.Portable(dir)
 
 // Settings: a typed JSON file with atomic saves and change events
 public sealed class Settings { public int FontSize { get; set; } = 14; }
 public sealed class SettingsStore(AppPaths p) : SettingsStore<Settings>(Path.Combine(p.Config, "settings.json"));
-var store = new SettingsStore(paths);
+SettingsStore store = new(paths);
 store.Load();                                 // defaults if missing or corrupt
 store.Update(s => s.FontSize = 16);           // saves + raises Changed(e.Settings, e.Source)
 store.Watch();                                // reload on external edits (Changed may fire on a background thread)
 
-// Logging: rolling daily files
-ILoggerFactory lf = NiddyLogging.CreateFactory(paths, LogLevel.Information);
+// Logging: rolling daily files, plus any other ILoggingBuilder providers
+ILoggerFactory lf = NiddyLogging.CreateFactory(paths, LogLevel.Information, b => b.AddConsole());
 services.AddLogging(b => b.AddFile(paths.Logs, o => o.RetainedFileCount = 14));
+ILoggerFactory noFiles = NiddyLogging.CreateFactory(b => b.AddConsole());   // no file provider
+// Your own provider (database, log server…): derive BatchingLoggerProvider<TOptions>, override WriteBatchAsync(batch, ct)
+// (runs on one background task; LogEntry has Timestamp/Level/Category/EventId/Message/Exception/Scopes/Properties),
+// then register it so the factory disposes it (= drains the queue):
+// FlushInterval: a part-full batch waits up to this long for more entries (default zero = write at once; Dispose never waits).
+// WriterThread: ThreadPool (default; no thread held while idle) | Dedicated (own thread; immune to pool starvation)
+//   | Shared (one thread for all Shared providers; awaiting writers only). Browser/WASI fall back to ThreadPool. Nothing spins when idle.
+// Providers are only ever added explicitly; nothing registers itself.
+b.AddOwnedProvider(_ => new DbLoggerProvider(new DbLoggerOptions { ConnectionString = cs, MaxQueueLength = 10_000, FlushInterval = TimeSpan.FromSeconds(2) }));
 
-// Secrets: Keychain / Credential Manager / Secret Service / encrypted-file fallback
+// Secrets: Keychain (all Apple platforms) / Credential Manager / Secret Service / encrypted-file fallback. Throws in the browser
 ISecureStorage secrets = SecureStorageFactory.Create(paths.Data, "MyApp");
 secrets.SetToken("api", token); secrets.GetToken("api"); secrets.TokenExists("api"); secrets.SetToken("api", null);
+// Plug in your own (before the first Create). Newest first; return null to pass to the next / the built-in default
+IDisposable reg = SecureStorageFactory.Register(ctx => ctx.OS == OS.Android ? new MyKeystore(ctx.ServiceName) : null);   // ctx.OS = Platform.Info.OS
+SecureStorageFactory.Register(ctx => new LoggingStorage(SecureStorageFactory.CreateDefault(ctx)));   // wrap the default
 
 // Crash-safe writes
 AtomicFile.WriteAllText(path, json);           // also WriteAllBytes, Write(path, stream => …), async versions
 
 // Results instead of exceptions for expected failures
-Result<User> Find(int id) => users.TryGetValue(id, out var u) ? u : new Error("Not found", "user.missing");
-var r = Result.Try(() => File.ReadAllText(path));        // exceptions become Error(Message, Code?, Exception?)
+Result<User> Find(int id) => users.TryGetValue(id, out User? u) ? u : new Error("Not found", "user.missing");
+Result<string> r = Result.Try(() => File.ReadAllText(path));        // exceptions become Error(Message, Code?, Exception?)
 string text = r.Match(ok => ok, err => "");
 Option<User> first = users.Values.FirstOrNone(u => u.IsAdmin);
 
 // Threading
-var debounce = new Debouncer(TimeSpan.FromMilliseconds(300));
+Debouncer debounce = new(TimeSpan.FromMilliseconds(300));
 debounce.Invoke(async ct => await SearchAsync(query, ct));   // earlier calls are cancelled
-var throttle = new Throttler(TimeSpan.FromSeconds(1));
+Throttler throttle = new(TimeSpan.FromSeconds(1));
 throttle.Invoke(() => Redraw());
-var once = new Guard(); if (once.CheckSet()) Init();          // true only for the first caller
+Guard once = new(); if (once.TryClaim) Init();          // true only for the first caller
 
-// Helpers
-await Retry.ExecuteAsync(() => CallApiAsync(), maxRetries: 5, baseDelayMs: 200);   // retries on any exception
+// Retry (Niddy.Core.Resilience)
+await Retry.ExecuteAsync(() => CallApiAsync(ct), new RetryOptions   // null options: 3 attempts, 100 ms doubling to 3 s
+{
+    MaxAttempts = 5,                                  // total attempts, including the first
+    BaseDelay = TimeSpan.FromMilliseconds(200),
+    MaxJitter = TimeSpan.FromMilliseconds(100),       // random extra wait, 0–100 ms
+    ShouldRetry = ex => ex is HttpRequestException,   // default: retries any exception; rejected ones pass through unwrapped
+    OnRetry = a => { log(a.Exception, a.Number, a.Delay); return true; },   // false stops: RetryBlockedException
+}, ct);                                               // all attempts failed: MaxRetriesException (InnerException = last)
+// C# 14 static extensions on File/Directory/Path (Niddy.Core.IO): call them on the BCL type
+Directory.DeleteWithRetry(dir);       // retries locked/read-only files; throwOnFailure: false returns false instead
+Directory.CreateEmpty(outDir);        // exists and is empty afterwards
+Directory.Copy(src, dest, excludedDirectories: ["bin", "obj"]);
+string safe = Path.SanitizeFileName(title);
+// Backups (Niddy.Core.IO.Backups)
+File.Backup(path, keep: 5);  // report.backup-20260928T140312Z.txt next to it; Directory.Backup(dir, archive: ArchiveFormat.Zip) too
+File.Backup(path, extension: ".bak");  // report.txt.backup-20260928T140312Z.bak
+// Archives (Niddy.Core.IO.Archives)
+Archive.Create(dir, "out.zip", new() { ExcludedDirectories = ["bin", "obj"] });  // zip/tar/tar.gz from the extension; path, stream and async forms
+Archive.Extract(upload, dest, new() { MaxEntries = 10_000, MaxTotalBytes = 500L << 20 });  // rejects ../ and escaping links; set limits for untrusted archives
+string cfg = Archive.ReadEntryText("plugin.zip", "config.json");  // also OpenEntry (stream), TryOpenEntry, ReadEntryBytes, ExtractEntry, ContainsEntry, GetEntries
+// JSON (Niddy.Core.Serialization)
+Project? p = JsonFile.Read<Project>(path);   // default if missing/empty/invalid; Write/WriteAsync are atomic
+Project? q = JsonSerializer.DeserializeOrDefault<Project>(text);   // default instead of throwing
+string json = JsonSerializer.Serialize(p, JsonSerializerOptions.Niddy);   // shared, read-only; copy it to change
+// Text (Niddy.Core.Text), streams (Niddy.Core.IO), root (Niddy.Core)
 Humanize.Bytes(1_500_000);            // "1.5 MB"
 Humanize.RelativeTime(when);          // "3 minutes ago"
 Humanize.Plural(3, "file");           // "3 files"
-using var watcher = DebouncedFileWatcher.ForFile(path);  // one batched Changed per burst
+using DebouncedFileWatcher watcher = DebouncedFileWatcher.ForFile(path);  // one batched Changed per burst
+string.Equals(a, b, Path.Comparison);   // compare paths: ignores case on Windows/macOS/Catalyst only
+if (name.IsNullOrWhiteSpace()) return;   // [NotNullWhen(false)]: name is non-null after this
+string all = await stream.ReadToStringAsync();
+value.DisposeIfPossible();            // any T; disposes if IDisposable
+UrlLauncher.Open("https://example.com");   // no UI framework needed; not on Android
+
+// Machine info (namespace Niddy.Core.SystemInfo): detected once and cached
+Platform info = Platform.Info;
+info.OS; info.OSVersion;              // OS.MacOS, 15.0. OS.Browser / OS.Wasi on WebAssembly, OS.MacCatalyst for Catalyst. On Linux/Android OSVersion is the kernel version
+info.Triple;                          // Rust/LLVM style: "aarch64-apple-darwin", "x86_64-unknown-linux-musl", "armv7-unknown-linux-gnueabihf"; also TotalMemoryBytes, TotalGpus (estimate), Runtime
+Platform.DeclareSupportedOperatingSystems(OS.Windows, OS.MacOS);   // then Info throws UnsupportedOperatingSystemException elsewhere
 ```
 
 Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-paths](examples/settings-logging-paths.md).
@@ -277,19 +329,46 @@ Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-pat
 | Mistake | Correct |
 |---|---|
 | `Page<App, HomePage>` | `Page<MainDataContext, HomePageDataContext>`: app data context, then page data context |
+| Relying on `Children = [...]` or file order for menu order | Menus are alphabetical. Use `SortKey`, `options.PageSort`, or `PageRegistry.DeclaredOrder` |
+| `SortKey = "~"` to sort last | Culture comparison doesn't put punctuation after letters; use `"zzz"` |
+| Rebuilding `DialogOverlayHost` → `ToastHost` → `PageView` by hand in tests | `new AppShell(options)` |
 | `[PageRegistration]` without the generator package | Add `Niddy.Avalonia.Generators`, or call `PageRegistry.Register<T>()` |
 | Using `NiddyApp.Paths` / `Current.Paths` inside `Configure` | Build `AppPaths.For(...)` yourself there |
 | `Dialog.Progress` reporting 0–1 | 0–100 (while `ToastHandle.Report` is 0–1) |
 | Touching controls inside `Dialog.Progress` work | It runs on a background thread; only report progress |
 | `FilePicker.OpenFilePath` in cross-platform code | `FilePicker.OpenFile` + `OpenReadAsync` |
-| `Process.Start(url)` | `UriLauncher.TryLaunchAsync(this, url)` |
+| `Directory.Delete(dir, true)` on folders that may be locked or read-only (git clones, just-closed files) | `Directory.DeleteWithRetry(dir)` / `File.DeleteWithRetry(path)` |
+| `catch (HttpRequestException)` around `Retry.Execute`/`ExecuteAsync` for the final failure | `catch (MaxRetriesException ex)` (or `RetryException` for blocked retries too); the failure is `ex.InnerException`. Same for `File.DeleteWithRetry`/`Directory.DeleteWithRetry` |
+| `ZipFile.ExtractToDirectory` on an upload or download | `Archive.Extract` with `MaxEntries`/`MaxTotalBytes` (or `maxBytes` on single-entry methods), so a zip bomb can't fill the disk |
+| Reading many single files from a big `.tar.gz` with `OpenEntry` | Each call rescans from the start; use zip for random access, or `Extract` with a `Filter` |
+| `Archive.Create(source, stream)` without a format | `new ArchiveCreateOptions { Format = ArchiveFormat.Zip }`; a stream has no extension to go by |
+| `Process.Start(url)` | `UriLauncher.TryLaunchAsync(this, url)` in Avalonia; `UrlLauncher.Open(url)` without a UI (not on Android) |
 | Tokens in `SettingsStore` | `ISecureStorage` |
 | `SecureStorageFactory.Create()` | `SecureStorageFactory.Create(paths.Data, "MyApp")`; `baseDirectory` is required |
-| `xmlns:niddy` for `UriLauncher`/`WindowNotification` | They're in `Niddy.Avalonia.Utilities`, which isn't in the XAML namespace (use them from C#) |
+| Trusting the default secure storage on Android, FreeBSD or WASI | It's `EncryptedFileSecureStorage` there, with a guessable key; register a Keystore (or similar) provider for real secrets |
+| Calling `SecureStorageFactory.Create` in a browser app with no provider | It throws `PlatformNotSupportedException`; keep secrets server-side, or register a provider deliberately |
+| Running unsigned on iOS/iPadOS/Catalyst and expecting the Keychain to work | Keychain calls throw `InvalidOperationException` (OSStatus -34018) without a provisioning profile; macOS needs none |
+| Calling `SecureStorageFactory.Create` inside a registered provider | `SecureStorageFactory.CreateDefault(context)`; `Create` would run the provider again, forever |
+| Throwing from a provider when it doesn't apply | Return null so the next provider (or the default) is tried; exceptions aren't caught |
+| `b.AddProvider(new MyBatchingProvider(...))` | `b.AddOwnedProvider(_ => new MyBatchingProvider(...))`; `AddProvider` instances are never disposed, so queued entries are lost at exit |
+| `.Result` / `.Wait()` inside a batching provider's hooks with `WriterThread = Dedicated` or `Shared` | `await` it; blocking can deadlock the writer thread, like a UI thread |
+| A blocking (synchronous I/O) writer on `LogWriterThread.Shared` | `Dedicated`; shared-thread writers take turns, so a blocking one holds up every other provider |
+| Logging from inside `WriteBatchAsync` / `OnWriteFailed` | Don't; it feeds back into the provider's own queue. Count or report failures another way |
+| `using Niddy.Core.Helpers;` | There's no Helpers namespace; see the namespace list at the top (e.g. `Retry` is in `Niddy.Core.Resilience`, `Humanize` in `Niddy.Core.Text`) |
+| `IOHelpers.DeleteDirectory(dir)` / `PathHelpers.PathComparison` | `Directory.DeleteWithRetry(dir)` / `Path.Comparison`, C# 14 static extensions (`using Niddy.Core.IO;`) |
+| Mutating `JsonSerializerOptions.Niddy` | It's read-only and shared; copy it: `new JsonSerializerOptions(JsonSerializerOptions.Niddy) { … }` |
 | Reusing one custom dialog instance | New instance per `Dialog.Show` |
 | Handling `SettingsStore.Changed` / `PageRegistry.PagesChanged` and touching UI | `Dispatcher.UIThread.Post(...)` |
+| `Platform.Info.OSVersion` as the Linux distro or Android release | It's the kernel version on Linux and Android |
+| Expecting `Triple` to always end in `linux-gnu` on Linux | It's `linux-musl` on Alpine and other musl distros, with `eabihf` added on 32-bit ARM. 32-bit `Arm` is `armv7`, `Armv6` is `arm` |
+| Checking `OS.iOS` to mean "any Apple mobile" | iPads report `OS.iPadOS` and Catalyst apps `OS.MacCatalyst`; check each one you mean |
+| `DeclareSupportedOperatingSystems` and expecting only the first `Info` to throw | Every `Platform.Info` access throws on an undeclared OS; catch `UnsupportedOperatingSystemException` once at startup and exit |
+
+## Changing Niddy itself
+
+If you're editing this library rather than using it, follow the [Development section of the root README](../README.md#development). In particular: **every new public type (class, record, struct, interface, enum, delegate, attribute, anything) is documented in the same change.** It gets a `docs/<Project>/<Folder>/<Type>.md` page (small supporting types go on their owning class's page), an entry in the [docs index](README.md), and an update to this guide if it changes how the library is used. New public members go on their type's existing page. Undocumented public types mean the change isn't finished.
 
 ## Where to look next
 
 - [docs/README.md](README.md): every page.
-- [docs/examples/](examples/): app-setup, settings-logging-paths, long-running-work, custom-dialog, mobile-and-browser, plugin-pages, oauth-sign-in.
+- [docs/examples/](examples): app-setup, settings-logging-paths, long-running-work, custom-dialog, mobile-and-browser, plugin-pages, oauth-sign-in.

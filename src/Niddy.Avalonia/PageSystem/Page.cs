@@ -10,7 +10,7 @@ namespace Niddy.Avalonia.PageSystem;
 ///     class directly for a simple page whose <c>DataContext</c> is the app data context.
 ///     <para>
 ///         Register a page with <see cref="PageRegistrationAttribute"/> (with the <c>Niddy.Avalonia.Generators</c>
-///         package) or <see cref="PageRegistry.Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?)"/>,
+///         package) or <see cref="PageRegistry.Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?, string?)"/>,
 ///         or show it without registering it with <see cref="PageControlDataContext.Push(Page, bool, object?)"/>.
 ///         A page's ID is its type: <c>MyPage.PageId</c>.
 ///     </para>
@@ -98,7 +98,9 @@ public abstract class Page : UserControl
         _pageControl = pageControl;
         Registration = registration;
         if (_dataContextsCreated)
+        {
             return;
+        }
 
         AppDataContextValue = appDataContext;
         CreateDataContexts();

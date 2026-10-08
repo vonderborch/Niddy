@@ -14,10 +14,10 @@ public class DataContextBaseTests
     [Fact]
     public async Task RunAsync_IsBusyWhileRunning()
     {
-        var context = new TestDataContext();
-        var gate = new TaskCompletionSource();
+        TestDataContext context = new();
+        TaskCompletionSource gate = new();
 
-        var run = context.Run(() => gate.Task);
+        Task run = context.Run(() => gate.Task);
         Assert.True(context.IsBusy);
 
         gate.SetResult();
@@ -29,9 +29,9 @@ public class DataContextBaseTests
     [Fact]
     public async Task RunAsync_RecordsTheErrorAndReturnsDefault()
     {
-        var context = new TestDataContext();
+        TestDataContext context = new();
 
-        var result = await context.Run(() => Task.FromException<int>(new InvalidOperationException("broken")));
+        int result = await context.Run(() => Task.FromException<int>(new InvalidOperationException("broken")));
 
         Assert.Equal(0, result);
         Assert.Equal("broken", context.ErrorMessage);
@@ -41,8 +41,8 @@ public class DataContextBaseTests
     [Fact]
     public async Task RaisesPropertyChangedAfterUpdating()
     {
-        var context = new TestDataContext();
-        var seen = new List<(string?, bool)>();
+        TestDataContext context = new();
+        List<(string?, bool)> seen = new();
         context.PropertyChanged += (_, e) => seen.Add((e.PropertyName, context.IsBusy));
 
         await context.Run(() => Task.CompletedTask);

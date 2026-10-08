@@ -5,7 +5,9 @@ using Avalonia.Markup.Xaml.Styling;
 using Niddy.Avalonia.Dialogs;
 using Niddy.Avalonia.Hosting;
 using Niddy.Avalonia.PageSystem;
-using Niddy.Avalonia.Toast;
+using Niddy.Avalonia.Toasts;
+
+using Niddy.Core.SystemInfo;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -14,7 +16,7 @@ public class HostingTests
     [AvaloniaFact]
     public void ShellPutsPagesUnderToastsUnderDialogs()
     {
-        var shell = new AppShell(
+        AppShell shell = new(
             new NiddyAppOptions { StartingPage = HomePage.PageId, AppDataContext = new TestAppDataContext(), ToastPlacement = ScreenPlacement.TopCenter },
             AppMode.Desktop
         );
@@ -30,12 +32,12 @@ public class HostingTests
     [AvaloniaFact]
     public void LayoutWrapsThePageView()
     {
-        var options = new NiddyAppOptions
+        NiddyAppOptions options = new()
         {
             StartingPage = HomePage.PageId,
             Layout = pages => new DockPanel { Children = { new TextBlock { Text = "Nav" }, pages } },
         };
-        var shell = new AppShell(options, AppMode.Desktop);
+        AppShell shell = new(options, AppMode.Desktop);
 
         Assert.IsType<DockPanel>(shell.Toasts.Content);
         Assert.Same(shell.Toasts.Content, shell.Pages.Parent);
@@ -44,8 +46,8 @@ public class HostingTests
     [AvaloniaFact]
     public void ShellPassesTheAppDataContextToPages()
     {
-        var app = new TestAppDataContext();
-        var shell = new AppShell(new NiddyAppOptions { StartingPage = HomePage.PageId, AppDataContext = app }, AppMode.Desktop);
+        TestAppDataContext app = new();
+        AppShell shell = new(new NiddyAppOptions { StartingPage = HomePage.PageId, AppDataContext = app }, AppMode.Desktop);
         new Window { Content = shell }.Show();
 
         Assert.Same(app, Assert.IsType<HomePage>(shell.Pages.PageControlDataContext.ActivePage).AppDataContext);
@@ -54,9 +56,9 @@ public class HostingTests
     [AvaloniaFact]
     public void MobileModeUsesTheNarrowToastPlacement()
     {
-        var options = new NiddyAppOptions { StartingPage = HomePage.PageId };
+        NiddyAppOptions options = new() { StartingPage = HomePage.PageId };
 
-        var mobile = new AppShell(options, AppMode.Mobile).Toasts;
+        ToastHost mobile = new AppShell(options, AppMode.Mobile).Toasts;
         Assert.Equal(ScreenPlacement.BottomRight, mobile.Placement);
         Assert.Equal(ScreenPlacement.BottomCenter, mobile.ActualPlacement);
         Assert.Equal(ScreenPlacement.BottomRight, new AppShell(options, AppMode.Desktop).Toasts.ActualPlacement);
@@ -82,10 +84,49 @@ public class HostingTests
         Assert.Equal(expected, NiddyApp.ResolveMode(requested, appLifetime));
     }
 
+    [Theory]
+    [InlineData(OS.Android, true)]
+    [InlineData(OS.iOS, true)]
+    [InlineData(OS.iPadOS, true)]
+    [InlineData(OS.Browser, true)]
+    [InlineData(OS.Windows, false)]
+    [InlineData(OS.MacOS, false)]
+    [InlineData(OS.MacCatalyst, false)]
+    [InlineData(OS.Linux, false)]
+    public void WithoutALifetimeTheOSDecidesTheMode(OS os, bool mobile) =>
+        Assert.Equal(mobile, NiddyApp.IsMobile(os));
+
+    [AvaloniaFact]
+    public void ShellCanBeCreatedWithoutOptions()
+    {
+        AppShell shell = new();
+        new Window { Content = shell }.Show();
+
+        Assert.Equal(AppMode.Desktop, shell.Mode); // Decided by the OS: tests run on a desktop OS.
+        Assert.False(shell.Toasts.IsMobile);
+        Assert.Same(shell.Toasts, ToastHost.FindInVisualTree(shell.Pages));
+        Assert.Same(shell.Dialogs, DialogOverlayHost.FindInVisualTree(shell.Toasts));
+        Assert.Null(shell.Pages.PageControlDataContext.ActivePage);
+    }
+
+    [AvaloniaFact]
+    public void ShellModeComesFromTheArgumentThenTheOptions()
+    {
+        NiddyAppOptions options = new() { StartingPage = HomePage.PageId, Mode = AppMode.Mobile };
+
+        AppShell mobile = new(options);
+        Assert.Equal(AppMode.Mobile, mobile.Mode);
+        Assert.True(mobile.Toasts.IsMobile);
+
+        Assert.Equal(AppMode.Desktop, new AppShell(options, AppMode.Desktop).Mode);
+    }
+
     [AvaloniaFact]
     public void FluentStylesLoad()
     {
-        foreach (var style in NiddyApp.CreateFluentStyles().OfType<StyleInclude>())
+        foreach (StyleInclude style in NiddyApp.CreateFluentStyles().OfType<StyleInclude>())
+        {
             Assert.NotNull(style.Loaded);
+        }
     }
 }

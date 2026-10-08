@@ -26,12 +26,15 @@ namespace Niddy.Avalonia.Dialogs;
 /// </summary>
 public class DialogLayout : UserControl
 {
+    /// <summary>Defines the <see cref="Title"/> property.</summary>
     public static readonly StyledProperty<string?> TitleProperty =
         AvaloniaProperty.Register<DialogLayout, string?>(nameof(Title));
 
+    /// <summary>Defines the <see cref="Description"/> property.</summary>
     public static readonly StyledProperty<string?> DescriptionProperty =
         AvaloniaProperty.Register<DialogLayout, string?>(nameof(Description));
 
+    /// <summary>Defines the <see cref="TitleForeground"/> property.</summary>
     public static readonly StyledProperty<IBrush?> TitleForegroundProperty =
         AvaloniaProperty.Register<DialogLayout, IBrush?>(nameof(TitleForeground));
 
@@ -39,15 +42,18 @@ public class DialogLayout : UserControl
     private readonly TextBlock _description = new() { FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly WrapPanel _buttons = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8 };
 
+    /// <summary>Creates an empty layout.</summary>
     public DialogLayout()
     {
         Template = new FuncControlTemplate<DialogLayout>((layout, _) =>
         {
             // Template parts are reused if the template is applied again, so detach them from the last one.
-            foreach (var part in new Control[] { layout._title, layout._description, layout._buttons })
+            foreach (Control part in new Control[] { layout._title, layout._description, layout._buttons })
+            {
                 (part.Parent as Panel)?.Children.Remove(part);
+            }
 
-            var presenter = new ContentPresenter
+            ContentPresenter presenter = new()
             {
                 Name = "PART_ContentPresenter",
                 [!ContentPresenter.ContentProperty] = layout[!ContentProperty],
@@ -92,15 +98,23 @@ public class DialogLayout : UserControl
     {
         base.OnPropertyChanged(change);
         if (change.Property == TitleProperty)
+        {
             SetText(_title, Title);
+        }
         else if (change.Property == DescriptionProperty)
+        {
             SetText(_description, Description);
+        }
         else if (change.Property == TitleForegroundProperty)
         {
             if (TitleForeground is { } brush)
+            {
                 _title.Foreground = brush;
+            }
             else
+            {
                 _title.ClearValue(TextBlock.ForegroundProperty);
+            }
         }
     }
 

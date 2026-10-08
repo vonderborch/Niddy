@@ -14,7 +14,7 @@ Shows one [`Page`](Page.md) at a time and navigates between them, with a back st
 | Member | Description |
 |---|---|
 | `Type? StartingPage` | `{x:Type local:HomePage}` in AXAML, `HomePage.PageId` in code. |
-| `Type? ParentPage` | Whose child pages `AvailablePages` lists. Null means top-level pages, or the containing page's children. |
+| `Type? ParentPage` | Whose child pages `AvailablePages` lists, in [`PageRegistry.Sort`](PageRegistry.md#ordering) order. Null means top-level pages, or the containing page's children. |
 | `object? AppDataContext` | Every page's app data context. Separate from the view's own `DataContext`. |
 | `bool HandleBackRequests` | Default true. |
 | `bool HandleShortcuts` | Default true. |
@@ -40,7 +40,7 @@ Without `NiddyApp`:
 From code:
 
 ```csharp
-var pages = NiddyApp.Current!.Shell.Pages;
+PageView pages = NiddyApp.Current!.Shell.Pages;
 pages.NavigateTo<DetailsPage>(parameter: order);             // arrives in OnNavigatedTo
 pages.NavigateTo(HomePage.PageId, addToBackStack: false);    // tab or sidebar switches
 pages.Push(new OrderPage(order));                            // an unregistered page instance

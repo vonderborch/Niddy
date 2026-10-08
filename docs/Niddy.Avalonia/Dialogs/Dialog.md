@@ -1,6 +1,6 @@
 # Dialog
 
-`Niddy.Avalonia.Dialogs` · Niddy.Avalonia · [source](../../../src/Niddy.Avalonia/Dialogs/Dialog.cs) · [TableColumn](../../../src/Niddy.Avalonia/Dialogs/TableDialog.axaml.cs)
+`Niddy.Avalonia.Dialogs` · Niddy.Avalonia · [source](../../../src/Niddy.Avalonia/Dialogs/Dialog.cs) · [TableColumn](../../../src/Niddy.Avalonia/Dialogs/TableColumn.cs)
 
 Shows dialogs: eleven built-in kinds, and your own through `Dialog.Show`. Each dialog is a single control. It's shown either as an overlay card over the nearest [`DialogOverlayHost`](DialogOverlayHost.md) or in a modal window, chosen by `DefaultMode` or a per-call `displayMode`. Every method is `async` and takes `parent`, a control in the visual tree the dialog belongs to. From a page or control, that's `this`.
 
@@ -48,12 +48,19 @@ Every method also takes these optional parameters:
 
 ### `TableColumn<T>`
 
-`record TableColumn<T>(string Header, Func<T, object?> Value)` with `Func<object?, string>? Format { init; }`. The value is used for sorting, and `Format` (default `ToString`) for display.
+`record TableColumn<T>(string Header, Func<T, object?> Value)`: a column of `Dialog.Table`. `Value` gets a row's value, which is used for sorting.
+
+| Property | Default | |
+|---|---|---|
+| `Func<object?, string>? Format { init; }` | `ToString` | Formats the value for display. |
+| `bool AlignRight { init; }` | false | Right-aligns the column, e.g. for numbers. |
+| `DataGridLength? Width { init; }` | fits the content | The column width, e.g. `new DataGridLength(1, DataGridLengthUnitType.Star)` (`using Avalonia.Controls;`). |
 
 ## Examples
 
 ```csharp
 using Niddy.Avalonia.Dialogs;
+using Niddy.Core.Text;   // Humanize
 
 await Dialog.Notification.Open(this, "Done", "Export finished.");
 
@@ -62,7 +69,7 @@ if (!await Dialog.Warning.Open(this, "Delete project?", "This can't be undone.",
 
 string? name = await Dialog.Input.Open(this, "Rename", "New name:", defaultValue: project.Name);
 
-var values = await Dialog.MultiInput.Open(this, "New user", "", [("Name", ""), ("Email", "")]);
+Dictionary<string, string>? values = await Dialog.MultiInput.Open(this, "New user", "", [("Name", ""), ("Email", "")]);
 if (values is not null) CreateUser(values["Name"], values["Email"]);
 
 Theme? theme = await Dialog.Selection.Open(this, "Theme", "Pick one:", themes, t => t.Name);
@@ -70,7 +77,7 @@ Theme? theme = await Dialog.Selection.Open(this, "Theme", "Pick one:", themes, t
 bool finished = await Dialog.Progress.Open(this, "Importing…", "This can take a minute.",
     async (progress, ct) =>
     {
-        for (var i = 0; i < files.Count; i++)
+        for (int i = 0; i < files.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             await ImportAsync(files[i], ct);

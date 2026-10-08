@@ -1,13 +1,19 @@
 using Avalonia.Input;
+using Niddy.Core.SystemInfo;
 
 namespace Niddy.Avalonia.PageSystem;
 
 /// <summary>Parses page shortcuts, which are key gestures with a platform-neutral <c>Primary</c> modifier.</summary>
 public static class PageShortcut
 {
-    /// <summary>The modifier <c>Primary</c> stands for: Meta (Cmd) on macOS and iOS, Control elsewhere.</summary>
-    public static KeyModifiers PrimaryModifier { get; } =
-        OperatingSystem.IsMacOS() || OperatingSystem.IsIOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+    /// <summary>
+    ///     The modifier <c>Primary</c> stands for: Meta (Cmd) on Apple platforms (macOS, Mac Catalyst, iOS, iPadOS),
+    ///     Control elsewhere. Based on <see cref="Platform.Info"/>.
+    /// </summary>
+    public static KeyModifiers PrimaryModifier => PrimaryModifierFor(Platform.Info.OS);
+
+    internal static KeyModifiers PrimaryModifierFor(OS os) =>
+        os is OS.MacOS or OS.MacCatalyst or OS.iOS or OS.iPadOS ? KeyModifiers.Meta : KeyModifiers.Control;
 
     /// <summary>
     ///     Parses a key gesture such as <c>"Primary+1"</c>, <c>"Ctrl+Shift+S"</c> or <c>"F5"</c>. <c>Primary</c> is
@@ -21,7 +27,10 @@ public static class PageShortcut
     {
         gesture = null;
         if (string.IsNullOrWhiteSpace(text))
+        {
             return false;
+        }
+
         try
         {
             gesture = Parse(text);
@@ -41,26 +50,33 @@ public static class PageShortcut
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text, paramName);
 
-        var primary = PrimaryModifier == KeyModifiers.Meta ? "Meta" : "Ctrl";
-        var parts = text.Split('+');
+        string primary = PrimaryModifier == KeyModifiers.Meta ? "Meta" : "Ctrl";
+        string[] parts = text.Split('+');
 
         // "Ctrl++" is Ctrl and the plus key, so only rewrite modifier positions.
-        for (var i = 0; i < parts.Length - 1; i++)
+        for (int i = 0; i < parts.Length - 1; i++)
         {
             if (parts[i].Trim().Equals("Primary", StringComparison.OrdinalIgnoreCase))
+            {
                 parts[i] = primary;
+            }
         }
 
         // KeyGesture would read "1" as the key with value 1 rather than the 1 key.
-        var last = parts[^1].Trim();
+        string last = parts[^1].Trim();
         if (last.Length == 1 && char.IsAsciiDigit(last[0]))
+        {
             parts[^1] = "D" + last;
+        }
 
         try
         {
-            var gesture = KeyGesture.Parse(string.Join('+', parts));
+            KeyGesture gesture = KeyGesture.Parse(string.Join('+', parts));
             if (gesture.Key == Key.None)
+            {
                 throw new ArgumentException($"'{text}' has no key.", paramName);
+            }
+
             return gesture;
         }
         catch (Exception e) when (e is FormatException or ArgumentException or InvalidOperationException)

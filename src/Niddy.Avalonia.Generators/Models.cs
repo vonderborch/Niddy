@@ -26,9 +26,12 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> items) : IEquatable
 
     public override int GetHashCode()
     {
-        var hash = 17;
-        foreach (var item in Items)
+        int hash = 17;
+        foreach (T item in Items)
+        {
             hash = unchecked(hash * 31 + (item?.GetHashCode() ?? 0));
+        }
+
         return hash;
     }
 
@@ -73,8 +76,9 @@ internal sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
 /// <param name="TopLevel">Whether it is top-level as a C# expression: <c>true</c>, <c>false</c> or <c>null</c>.</param>
 /// <param name="Icon">The page's icon as a C# expression, or <c>null</c>.</param>
 /// <param name="Shortcut">The shortcut as a C# string literal, or <c>null</c>.</param>
+/// <param name="SortKey">The page's sort key as a C# string literal, or <c>null</c>.</param>
 /// <param name="Location">The attribute's location, for diagnostics.</param>
-/// <param name="SortKey">Where the attribute is declared, so pages are registered in declaration order.</param>
+/// <param name="EmitOrder">Where the attribute is declared, so pages are registered in declaration order.</param>
 internal sealed record PageInfo(
     string PageType,
     string DisplayName,
@@ -84,8 +88,9 @@ internal sealed record PageInfo(
     string TopLevel,
     string Icon,
     string Shortcut,
+    string SortKey,
     LocationInfo? Location,
-    string SortKey
+    string EmitOrder
 );
 
 /// <summary>What the generator found on one page class: its valid registrations and any problems.</summary>

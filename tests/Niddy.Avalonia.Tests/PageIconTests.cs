@@ -19,7 +19,7 @@ public class PageIconTests
     [Fact]
     public void ASourceMadeForTheSizeWins()
     {
-        var icon = new PageIcon(Any, Data16, Data24, Png32);
+        PageIcon icon = new(Any, Data16, Data24, Png32);
 
         Assert.Same(Data16, icon.GetSource(16));
         Assert.Same(Data24, icon.GetSource(24));
@@ -37,7 +37,7 @@ public class PageIconTests
     [Fact]
     public void BitmapsAreScaledDownRatherThanUp()
     {
-        var icon = new PageIcon(Png32, Png64);
+        PageIcon icon = new(Png32, Png64);
 
         Assert.Same(Png32, icon.GetSource(20));
         Assert.Same(Png64, icon.GetSource(20, scaling: 2));
@@ -57,7 +57,7 @@ public class PageIconTests
     [Fact]
     public void GeneratedIconsHaveEverySize()
     {
-        var icon = PageRegistry.Find(HomePage.PageId)!.Icon!;
+        PageIcon icon = PageRegistry.Find(HomePage.PageId)!.Icon!;
 
         Assert.Equal([16d, 24d], icon.Sources.Select(s => s.Size));
         Assert.Equal("M0,0 L24,0 24,24 0,24Z", icon.GetSource(24).Data);
@@ -67,8 +67,8 @@ public class PageIconTests
     [AvaloniaFact]
     public void TheViewTakesItsSizeAndPicksTheSourceForIt()
     {
-        var view = new PageIconView { Icon = new PageIcon(Data16, Data24), IconSize = 24, Foreground = Brushes.Black };
-        var window = new Window { Content = new StackPanel { Children = { view } } };
+        PageIconView view = new() { Icon = new PageIcon(Data16, Data24), IconSize = 24, Foreground = Brushes.Black };
+        Window window = new() { Content = new StackPanel { Children = { view } } };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
@@ -89,10 +89,10 @@ public class PageIconTests
     [AvaloniaFact]
     public void ResourceIconsAreLookedUp()
     {
-        var geometry = Geometry.Parse("M0,0 L10,10");
-        var view = new PageIconView { Icon = new PageIcon(PageIconSource.FromResource("TestIcon")) };
+        Geometry geometry = Geometry.Parse("M0,0 L10,10");
+        PageIconView view = new() { Icon = new PageIcon(PageIconSource.FromResource("TestIcon")) };
         view.Resources["TestIcon"] = geometry;
-        var window = new Window { Content = view };
+        Window window = new() { Content = view };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 

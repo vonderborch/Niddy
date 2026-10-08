@@ -1,9 +1,9 @@
-namespace Niddy.Threading;
+namespace Niddy.Core.Threading;
 
 /// <summary>
-/// Runs an action at most once per <see cref="Interval" />, however often <see cref="Invoke(Action)" /> is called. By default
-/// the first call runs straight away and the last call in each interval runs when it ends, so the final state is
-/// never missed. Typical for progress updates, scroll and pointer-move handling.
+/// Runs an action at most once per <see cref="Interval" />, however often <see cref="Invoke(Action)" /> is called. By
+/// default the first call runs straight away and the last call in each interval runs when it ends, so the final state
+/// is never missed. Typical for progress updates, scroll and pointer-move handling.
 /// </summary>
 /// <remarks>
 /// Leading calls run on the calling thread. Trailing calls run on the <see cref="SynchronizationContext" /> that was
@@ -42,7 +42,7 @@ public sealed class Throttler : IDisposable
     /// <param name="interval">The shortest time between two runs.</param>
     /// <param name="leading">Whether a call outside an interval runs straight away. Defaults to true.</param>
     /// <param name="trailing">Whether the last call during an interval runs when it ends. Defaults to true.</param>
-    /// <param name="timeProvider">The clock to use; defaults to <see cref="System" />.</param>
+    /// <param name="timeProvider">The clock to use; defaults to <see cref="TimeProvider.System" />.</param>
     /// <param name="captureContext">
     /// Whether to run trailing calls on the current <see cref="SynchronizationContext" />. When false, they run on the thread pool.
     /// </param>
@@ -51,44 +51,45 @@ public sealed class Throttler : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
         if (!leading && !trailing)
         {
-            throw new ArgumentException("At least one of leading and trailing must be true.", "trailing");
+            throw new ArgumentException("At least one of leading and trailing must be true.", nameof(trailing));
         }
-        Interval = interval;
-        Leading = leading;
-        Trailing = trailing;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _context = (captureContext ? SynchronizationContext.Current : null);
+
+        this.Interval = interval;
+        this.Leading = leading;
+        this.Trailing = trailing;
+        this._timeProvider = timeProvider ?? TimeProvider.System;
+        this._context = captureContext ? SynchronizationContext.Current : null;
     }
 
     /// <summary>Runs <paramref name="action" /> now, at the end of the current interval, or not at all, as configured.</summary>
     public void Invoke(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        bool flag = false;
-        lock (_gate)
+        bool runNow = false;
+        lock (this._gate)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_inInterval)
+            ObjectDisposedException.ThrowIf(this._disposed, this);
+            if (this._inInterval)
             {
-                if (Trailing)
+                if (this.Trailing)
                 {
-                    _pending = action;
+                    this._pending = action;
                 }
             }
             else
             {
                 StartInterval();
-                if (Leading)
+                if (this.Leading)
                 {
-                    flag = true;
+                    runNow = true;
                 }
                 else
                 {
-                    _pending = action;
+                    this._pending = action;
                 }
             }
         }
-        if (flag)
+        if (runNow)
         {
             action();
         }
@@ -97,72 +98,64 @@ public sealed class Throttler : IDisposable
     /// <summary>Drops a pending trailing call.</summary>
     public void Cancel()
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            _pending = null;
+            this._pending = null;
         }
     }
 
     /// <summary>Drops a pending trailing call and stops the timer.</summary>
     public void Dispose()
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            _disposed = true;
-            _pending = null;
-            _timer?.Dispose();
-            _timer = null;
+            this._disposed = true;
+            this._pending = null;
+            this._timer?.Dispose();
+            this._timer = null;
         }
     }
 
     private void StartInterval()
     {
-        _inInterval = true;
-        if (_timer == null)
+        this._inInterval = true;
+        if (this._timer == null)
         {
-            _timer = _timeProvider.CreateTimer(state =>
-            {
-                ((Throttler)state).OnIntervalEnded();
-            }, this, Interval, Timeout.InfiniteTimeSpan);
+            this._timer = this._timeProvider.CreateTimer(static state => ((Throttler)state!).OnIntervalEnded(), this, this.Interval, Timeout.InfiniteTimeSpan);
         }
         else
         {
-            _timer.Change(Interval, Timeout.InfiniteTimeSpan);
+            this._timer.Change(this.Interval, Timeout.InfiniteTimeSpan);
         }
     }
 
     private void OnIntervalEnded()
     {
-        Action pending;
-        lock (_gate)
+        Action? pending;
+        lock (this._gate)
         {
-            if (_disposed)
+            if (this._disposed)
             {
                 return;
             }
-            pending = _pending;
-            _pending = null;
+
+            pending = this._pending;
+            this._pending = null;
             if (pending == null)
             {
-                _inInterval = false;
+                this._inInterval = false;
+                return;
             }
-            else
-            {
-                StartInterval();
-            }
+            StartInterval();
         }
-        if (pending == null)
-        {
-            return;
-        }
-        if (_context == null)
+        if (this._context == null)
         {
             Run(pending);
             return;
         }
-        _context.Post(state =>
+        this._context.Post(static state =>
         {
-            var (throttler, action) = ((Throttler, Action))state;
+            (Throttler throttler, Action action) = ((Throttler, Action))state!;
             throttler.Run(action);
         }, (this, pending));
     }
@@ -175,7 +168,7 @@ public sealed class Throttler : IDisposable
         }
         catch (Exception exception)
         {
-            ActionFailed.Report(this, Error, exception);
+            ActionFailed.Report(this, this.Error, exception);
         }
     }
 }

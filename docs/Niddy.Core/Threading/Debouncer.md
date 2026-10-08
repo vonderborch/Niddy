@@ -1,6 +1,6 @@
 # Debouncer
 
-`Niddy.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Debouncer.cs)
+`Niddy.Core.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Debouncer.cs)
 
 Runs an action once calls stop arriving for `Delay`. Each `Invoke` restarts the wait and replaces the pending action, so only the last one runs. Use it for search-as-you-type, autosave and resize handling. To run *at most once per interval* instead, use [`Throttler`](Throttler.md).
 
@@ -25,7 +25,8 @@ Actions run on the `SynchronizationContext` that was current when the debouncer 
 Search as you type, in a ReactiveUI data context:
 
 ```csharp
-using Niddy.Threading;
+using Niddy.Avalonia.DataContexts;
+using Niddy.Core.Threading;
 
 public sealed class SearchPageDataContext : DataContextBase, IDisposable
 {

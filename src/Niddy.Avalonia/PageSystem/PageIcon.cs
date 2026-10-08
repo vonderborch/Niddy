@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Niddy.Avalonia.Hosting;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -28,11 +28,11 @@ public sealed class PageIcon : IEquatable<PageIcon>
         Sources = [.. sources];
         if (Sources.Count == 0)
         {
-            throw new ArgumentException("An icon needs at least one source.", "sources");
+            throw new ArgumentException("An icon needs at least one source.", nameof(sources));
         }
-        if (Sources.Any((PageIconSource s) => s == null))
+        if (Sources.Any(s => s == null))
         {
-            throw new ArgumentException("Icon sources can't be null.", "sources");
+            throw new ArgumentException("Icon sources can't be null.", nameof(sources));
         }
     }
 
@@ -59,11 +59,16 @@ public sealed class PageIcon : IEquatable<PageIcon>
     public PageIconSource GetSource(double size, double scaling = 1.0)
     {
         double pixels = size * scaling;
-        List<PageIconSource> source = Sources.Where((PageIconSource s) => s.IsScalable).ToList();
-        List<PageIconSource> source2 = Sources.Where((PageIconSource s) => !s.IsScalable).ToList();
-        return source.FirstOrDefault((PageIconSource s) => s.Size > 0.0 && s.Size == size) ?? source2.FirstOrDefault((PageIconSource s) => s.Size > 0.0 && s.Size == pixels) ?? source.FirstOrDefault((PageIconSource s) => s.Size == 0.0) ?? (from s in source
-            orderby Math.Abs(s.Size - size), s.Size descending
-            select s).FirstOrDefault() ?? source2.Where((PageIconSource s) => s.Size >= pixels).MinBy((PageIconSource s) => s.Size) ?? source2.FirstOrDefault((PageIconSource s) => s.Size == 0.0) ?? source2.MaxBy((PageIconSource s) => s.Size);
+        List<PageIconSource> scalable = Sources.Where(s => s.IsScalable).ToList();
+        List<PageIconSource> bitmaps = Sources.Where(s => !s.IsScalable).ToList();
+        return scalable.FirstOrDefault(s => s.Size > 0.0 && s.Size == size)
+            ?? bitmaps.FirstOrDefault(s => s.Size > 0.0 && s.Size == pixels)
+            ?? scalable.FirstOrDefault(s => s.Size == 0.0)
+            ?? scalable.OrderBy(s => Math.Abs(s.Size - size)).ThenByDescending(s => s.Size).FirstOrDefault()
+            ?? bitmaps.Where(s => s.Size >= pixels).MinBy(s => s.Size)
+            ?? bitmaps.FirstOrDefault(s => s.Size == 0.0)
+            // Sources is never empty, so with no scalable source there is a bitmap.
+            ?? bitmaps.MaxBy(s => s.Size)!;
     }
 
     /// <inheritdoc />
@@ -81,7 +86,7 @@ public sealed class PageIcon : IEquatable<PageIcon>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return Sources.Aggregate(17, (int hash, PageIconSource source) => hash * 31 + source.GetHashCode());
+        return Sources.Aggregate(17, (hash, source) => hash * 31 + source.GetHashCode());
     }
 }
 
@@ -113,24 +118,16 @@ public sealed class PageIconSource : IEquatable<PageIconSource>
     public double Size { get; }
 
     /// <summary>Whether the source scales cleanly to any size: path data, a geometry, or a resource.</summary>
-    public bool IsScalable
-    {
-        get
-        {
-            SourceKind kind = _kind;
-            bool flag = ((kind == SourceKind.Uri || kind == SourceKind.Image) ? true : false);
-            return !flag;
-        }
-    }
+    public bool IsScalable => _kind is not (SourceKind.Uri or SourceKind.Image);
 
     /// <summary>The SVG-style path data, if the source is path data.</summary>
-    public string? Data => (_kind == SourceKind.Data) ? ((string)_value) : null;
+    public string? Data => _kind == SourceKind.Data ? (string)_value : null;
 
     /// <summary>The bitmap's URI, if the source is a bitmap URI.</summary>
-    public string? Uri => (_kind == SourceKind.Uri) ? ((string)_value) : null;
+    public string? Uri => _kind == SourceKind.Uri ? (string)_value : null;
 
     /// <summary>The resource key, if the source is a resource.</summary>
-    public object? ResourceKey => (_kind == SourceKind.Resource) ? _value : null;
+    public object? ResourceKey => _kind == SourceKind.Resource ? _value : null;
 
     private PageIconSource(SourceKind kind, object value, double size)
     {
@@ -199,15 +196,9 @@ public sealed class PageIconSource : IEquatable<PageIconSource>
     {
         if (_kind == SourceKind.Resource)
         {
-            object value;
-            bool flag = control.TryFindResource(_value, control.ActualThemeVariant, out value);
-            bool flag2 = flag;
-            if (flag2)
-            {
-                bool flag3 = ((value is Geometry || value is IImage) ? true : false);
-                flag2 = flag3;
-            }
-            return flag2 ? value : null;
+            return control.TryFindResource(_value, control.ActualThemeVariant, out object? value) && value is Geometry or IImage
+                ? value
+                : null;
         }
         if (!_isLoaded)
         {
@@ -221,28 +212,20 @@ public sealed class PageIconSource : IEquatable<PageIconSource>
     {
         try
         {
-            SourceKind kind = _kind;
-            object result;
-            switch (kind)
+            switch (_kind)
             {
-            case SourceKind.Data:
-                result = Geometry.Parse((string)_value);
-                break;
-            case SourceKind.Uri:
-            {
-                Uri uri = new Uri((string)_value);
-                result = (((object)uri == null || !uri.IsFile) ? new Bitmap(AssetLoader.Open(new Uri((string)_value))) : new Bitmap(uri.LocalPath));
-                break;
+                case SourceKind.Data:
+                    return Geometry.Parse((string)_value);
+                case SourceKind.Uri:
+                    Uri uri = new((string)_value);
+                    return uri.IsFile ? new Bitmap(uri.LocalPath) : new Bitmap(AssetLoader.Open(uri));
+                default:
+                    return _value;
             }
-            default:
-                result = _value;
-                break;
-            }
-            return result;
         }
-        catch (Exception ex) when (((ex is FormatException || ex is IOException || ex is ArgumentException || ex is InvalidOperationException) ? 1 : 0) != 0)
+        catch (Exception ex) when (ex is FormatException or IOException or ArgumentException or InvalidOperationException)
         {
-            Trace.TraceWarning($"Page icon '{_value}' can't be loaded: {ex.Message}");
+            NiddyLog.Warning(typeof(PageIconSource), ex, $"Page icon '{_value}' can't be loaded");
             return null;
         }
     }
@@ -268,6 +251,6 @@ public sealed class PageIconSource : IEquatable<PageIconSource>
     /// <inheritdoc />
     public override string ToString()
     {
-        return (Size > 0.0) ? $"{_value} ({Size})" : (_value.ToString() ?? _kind.ToString());
+        return Size > 0.0 ? $"{_value} ({Size})" : _value.ToString() ?? _kind.ToString();
     }
 }

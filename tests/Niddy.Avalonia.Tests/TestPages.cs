@@ -83,7 +83,10 @@ public sealed class GuardedPage : TrackingPage
     protected override void OnNavigatingFrom(PageNavigatingFromEventArgs e)
     {
         if (!Block)
+        {
             return;
+        }
+
         e.Cancel = true;
         Refused = e;
     }

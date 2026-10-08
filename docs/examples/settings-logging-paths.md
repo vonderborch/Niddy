@@ -8,13 +8,13 @@ How the Niddy.Core pieces fit together in any app, with or without Avalonia. It 
 
 ```csharp
 using Microsoft.Extensions.Logging;
-using Niddy.IO;
-using Niddy.Logging;
-using Niddy.Results;
-using Niddy.Security;
-using Niddy.Settings;
+using Niddy.Core.IO;
+using Niddy.Core.Logging;
+using Niddy.Core.Results;
+using Niddy.Core.Security;
+using Niddy.Core.Settings;
 
-var paths = AppPaths.For("MyApp", "MyCompany").EnsureCreated();
+AppPaths paths = AppPaths.For("MyApp", "MyCompany").EnsureCreated();
 ```
 
 In a [`NiddyApp`](../Niddy.Avalonia/Hosting/NiddyApp.md), `NiddyApp.Current!.Paths` is the same thing, named after `AppName`.
@@ -32,7 +32,7 @@ public sealed class AppSettings
 public sealed class AppSettingsStore(AppPaths paths)
     : SettingsStore<AppSettings>(Path.Combine(paths.Config, "settings.json"));
 
-var settings = new AppSettingsStore(paths);
+AppSettingsStore settings = new(paths);
 settings.Load();                                  // defaults if the file is missing or broken
 settings.Update(s => s.RecentFiles.Insert(0, file));   // saves atomically, raises Changed
 settings.Watch();                                 // pick up edits made outside the app
@@ -44,12 +44,14 @@ settings.Changed += (_, e) => Dispatcher.UIThread.Post(() => ApplyFontSize(e.Set
 ## Logging
 
 ```csharp
-using var loggerFactory = NiddyLogging.CreateFactory(paths, LogLevel.Debug);   // rolling files in paths.Logs
-var log = loggerFactory.CreateLogger("Startup");
+using ILoggerFactory loggerFactory = NiddyLogging.CreateFactory(paths, LogLevel.Debug);   // rolling files in paths.Logs
+ILogger log = loggerFactory.CreateLogger("Startup");
 log.LogInformation("Started, data in {Folder}", paths.Data);
 ```
 
 With `Microsoft.Extensions.Hosting` or DI, use `services.AddLogging(b => b.AddFile(paths.Logs, o => o.RetainedFileCount = 14))`. In a `NiddyApp`, pass the factory as `options.LoggerFactory` so unhandled exceptions are logged too.
+
+Other providers go in the `configure` callback, e.g. `NiddyLogging.CreateFactory(paths, LogLevel.Debug, b => b.AddConsole())`. To skip files entirely, use `NiddyLogging.CreateFactory(b => ...)`. To write logs somewhere new, such as a database, derive from [BatchingLoggerProvider](../Niddy.Core/Logging/Batching/BatchingLoggerProvider.md) and register it with `AddOwnedProvider`.
 
 ## Secrets
 

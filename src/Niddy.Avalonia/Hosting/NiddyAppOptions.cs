@@ -3,18 +3,20 @@ using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using Niddy.Avalonia.Dialogs;
 using Niddy.Avalonia.PageSystem;
+using Niddy.Avalonia.State;
 using Niddy.Avalonia.Theme;
+using Niddy.Avalonia.Toasts;
 
 namespace Niddy.Avalonia.Hosting;
 
 /// <summary>
 ///     Everything <see cref="NiddyApp" /> sets up, configured in one place by
-///     <see cref="Configure(NiddyAppOptions)" />. Only <see cref="StartingPage" /> is required.
+///     <see cref="NiddyApp.Configure(NiddyAppOptions)" />. Only <see cref="StartingPage" /> is required.
 /// </summary>
 public sealed class NiddyAppOptions
 {
     /// <summary>
-    ///     The app's name, used for its folders (see <see cref="Paths" />). Defaults to
+    ///     The app's name, used for its folders (see <see cref="NiddyApp.Paths" />). Defaults to
     ///     <see cref="Title" />, or the entry assembly's name if that's empty too.
     /// </summary>
     public string? AppName { get; set; }
@@ -24,8 +26,8 @@ public sealed class NiddyAppOptions
 
     /// <summary>
     ///     Whether the app behaves as a desktop or mobile app: the main window, how dialogs are shown and where
-    ///     toasts go. Defaults to <see cref="Auto" />, which decides from the platform. Set
-    ///     <see cref="Mobile" /> on desktop to preview the mobile layout in a phone-sized window.
+    ///     toasts go. Defaults to <see cref="AppMode.Auto" />, which decides from the platform. Set
+    ///     <see cref="AppMode.Mobile" /> on desktop to preview the mobile layout in a phone-sized window.
     /// </summary>
     public AppMode Mode { get; set; } = AppMode.Auto;
 
@@ -43,6 +45,25 @@ public sealed class NiddyAppOptions
     ///     default) switches instantly. See <see cref="PageTransition" />.
     /// </summary>
     public IPageTransition? PageTransition { get; set; }
+
+    /// <summary>
+    ///     How pages are ordered wherever they're listed, e.g. in a <see cref="PageMenu" />. Null (the default) keeps
+    ///     <see cref="PageRegistry.Alphabetical" />: by each page's <see cref="PageRegistration.SortKey" />, which is
+    ///     its display name unless set. Applied to <see cref="PageRegistry.Sort" /> during startup.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///         Type[] order = [typeof(WorkflowsPage), typeof(RunsPage), typeof(IssuesPage)];
+    ///         options.PageSort = (a, b) =&gt; Array.IndexOf(order, a.PageType).CompareTo(Array.IndexOf(order, b.PageType));
+    ///     </code>
+    /// </example>
+    public Comparison<PageRegistration>? PageSort { get; set; }
+
+    /// <summary>
+    ///     Whether pages are listed in reverse <see cref="PageSort" /> order. Defaults to false. Applied to
+    ///     <see cref="PageRegistry.SortDescending" /> during startup.
+    /// </summary>
+    public bool PageSortDescending { get; set; }
 
     /// <summary>
     ///     Whether the platform back request (Android back button, iOS back gesture, browser back) goes back
@@ -66,21 +87,21 @@ public sealed class NiddyAppOptions
     public AppTheme? Theme { get; set; }
 
     /// <summary>
-    ///     How dialogs are shown. Sets <see cref="DefaultMode" />. Defaults to <see cref="Auto" />,
+    ///     How dialogs are shown. Sets <see cref="Dialog.DefaultMode" />. Defaults to <see cref="DialogDisplayMode.Auto" />,
     ///     which means windows in desktop mode and overlays in mobile mode.
     /// </summary>
     public DialogDisplayMode DialogMode { get; set; } = DialogDisplayMode.Auto;
 
-    /// <summary>Where toasts are shown on wide screens. Defaults to <see cref="BottomRight" />.</summary>
+    /// <summary>Where toasts are shown on wide screens. Defaults to <see cref="ScreenPlacement.BottomRight" />.</summary>
     public ScreenPlacement ToastPlacement { get; set; } = ScreenPlacement.BottomRight;
 
     /// <summary>
-    ///     Where toasts are shown in mobile mode and narrow windows. Defaults to <see cref="BottomCenter" />;
-    ///     null always uses <see cref="ToastPlacement" />. See <see cref="NarrowPlacement" />.
+    ///     Where toasts are shown in mobile mode and narrow windows. Defaults to <see cref="ScreenPlacement.BottomCenter" />;
+    ///     null always uses <see cref="ToastPlacement" />. See <see cref="ToastHost.NarrowPlacement" />.
     /// </summary>
     public ScreenPlacement? ToastNarrowPlacement { get; set; } = ScreenPlacement.BottomCenter;
 
-    /// <summary>How long toasts stay visible. Sets <see cref="DefaultDuration" />. Defaults to 3 seconds.</summary>
+    /// <summary>How long toasts stay visible. Sets <see cref="Toast.DefaultDuration" />. Defaults to 3 seconds.</summary>
     public TimeSpan ToastDuration { get; set; } = TimeSpan.FromSeconds(3L);
 
     /// <summary>The main window's title.</summary>
@@ -98,16 +119,16 @@ public sealed class NiddyAppOptions
     /// <summary>The main window's minimum height. Defaults to 0.</summary>
     public double MinHeight { get; set; }
 
-    /// <summary>The main window's width in <see cref="Mobile" /> mode on desktop. Defaults to 390.</summary>
+    /// <summary>The main window's width in <see cref="AppMode.Mobile" /> mode on desktop. Defaults to 390.</summary>
     public double MobilePreviewWidth { get; set; } = 390.0;
 
-    /// <summary>The main window's height in <see cref="Mobile" /> mode on desktop. Defaults to 844.</summary>
+    /// <summary>The main window's height in <see cref="AppMode.Mobile" /> mode on desktop. Defaults to 844.</summary>
     public double MobilePreviewHeight { get; set; } = 844.0;
 
     /// <summary>
     ///     Whether the main window's size, position and maximized state are saved on close and restored next time,
-    ///     in <see cref="Default" />. Defaults to true. Other windows can opt in with
-    ///     <see cref="KeyProperty" />.
+    ///     in <see cref="UiStateStore.Default" />. Defaults to true. Other windows can opt in with
+    ///     <see cref="WindowMemory.KeyProperty" />.
     /// </summary>
     public bool RememberWindowState { get; set; } = true;
 
@@ -126,15 +147,16 @@ public sealed class NiddyAppOptions
     /// </summary>
     public bool HandleUnhandledExceptions { get; set; } = true;
 
-    /// <summary>Whether unhandled UI-thread exceptions show <see cref="Exception" />. Defaults to true.</summary>
+    /// <summary>Whether unhandled UI-thread exceptions show an exception dialog. Defaults to true.</summary>
     public bool ShowUnhandledExceptionDialog { get; set; } = true;
 
     /// <summary>The URL the exception dialog's Report Issue button opens. The button is hidden when empty.</summary>
     public string ReportIssueLink { get; set; } = string.Empty;
 
     /// <summary>
-    ///     Called for every unhandled exception before the default handling. Set <see cref="Handled" />
-    ///     or <see cref="ShowDialog" /> to change it. See <see cref="ExceptionOccurred" />.
+    ///     Called for every unhandled exception before the default handling. Set <see cref="UnhandledExceptionOccurredEventArgs.Handled" />
+    ///     or <see cref="UnhandledExceptionOccurredEventArgs.ShowDialog" /> to change it. See
+    ///     <see cref="GlobalExceptionHandler.ExceptionOccurred" />.
     /// </summary>
     public Action<UnhandledExceptionOccurredEventArgs>? OnUnhandledException { get; set; }
 }

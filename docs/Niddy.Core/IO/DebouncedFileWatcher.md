@@ -1,10 +1,10 @@
 # DebouncedFileWatcher
 
-`Niddy.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/DebouncedFileWatcher.cs)
+`Niddy.Core.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/DebouncedFileWatcher.cs)
 
 Watches a directory or file and reports changes once they settle. `FileSystemWatcher` raises several events for one save (and editors often write a temp file and rename it); this waits until no event has arrived for `Delay`, then raises `Changed` once with one merged change per path.
 
-Events are raised on the `SynchronizationContext` that was current when the watcher was created (e.g. the UI thread), or the thread pool. Watching starts immediately.
+Events are raised on the `SynchronizationContext` that was current when the watcher was created (e.g. the UI thread), or the thread pool. Watching starts immediately. Paths are matched with [`Path.Comparison`](FileSystemExtensions.md), so on Windows and macOS events for `Notes.txt` and `notes.txt` merge into one change.
 
 ## API
 
@@ -28,18 +28,18 @@ Supporting types:
 ## Examples
 
 ```csharp
-using Niddy.IO;
+using Niddy.Core.IO;
 
 // Reload a config file when it's edited in another program
-using var watcher = DebouncedFileWatcher.ForFile(configPath);
+using DebouncedFileWatcher watcher = DebouncedFileWatcher.ForFile(configPath);
 watcher.Changed += (_, _) => ReloadConfig();
 
 // Refresh a library view when images are added or removed
-using var images = new DebouncedFileWatcher(libraryDir, "*.png", includeSubdirectories: true,
+using DebouncedFileWatcher images = new(libraryDir, "*.png", includeSubdirectories: true,
     delay: TimeSpan.FromMilliseconds(500));
 images.Changed += (_, e) =>
 {
-    foreach (var change in e.Changes)
+    foreach (FileChange change in e.Changes)
         library.Refresh(change.FullPath, change.ChangeType);
 };
 images.Error += (_, _) => library.RescanAll();

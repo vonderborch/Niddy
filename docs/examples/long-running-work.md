@@ -1,6 +1,6 @@
 # Long-running work
 
-Three ways to show work in progress, from most to least intrusive, plus retries and getting the user's attention when it's done. It uses [Dialog.Progress](../Niddy.Avalonia/Dialogs/Dialog.md), [Toast.ShowProgress](../Niddy.Avalonia/Toast/Toast.md), [ToastHandle](../Niddy.Avalonia/Toast/ToastHandle.md), [DataContextBase](../Niddy.Avalonia/DataContexts/DataContextBase.md), [Retry](../Niddy.Core/Helpers/Retry.md) and [WindowNotification](../Niddy.Avalonia/Utilities/WindowNotification.md).
+Three ways to show work in progress, from most to least intrusive, plus retries and getting the user's attention when it's done. It uses [Dialog.Progress](../Niddy.Avalonia/Dialogs/Dialog.md), [Toast.ShowProgress](../Niddy.Avalonia/Toasts/Toast.md), [ToastHandle](../Niddy.Avalonia/Toasts/ToastHandle.md), [DataContextBase](../Niddy.Avalonia/DataContexts/DataContextBase.md), [Retry](../Niddy.Core/Resilience/Retry.md) and [WindowNotification](../Niddy.Avalonia/WindowNotification.md).
 
 | Use | When |
 |---|---|
@@ -15,19 +15,19 @@ Three ways to show work in progress, from most to least intrusive, plus retries 
 The work runs on a background thread, so don't touch controls from it. The result is true if the work finished, and false if it was cancelled or threw.
 
 ```csharp
+using Niddy.Avalonia;   // WindowNotification
 using Niddy.Avalonia.Dialogs;
-using Niddy.Avalonia.Toast;
-using Niddy.Avalonia.Utilities;
-using Niddy.Helpers;
+using Niddy.Avalonia.Toasts;
+using Niddy.Core.Resilience;
 
 private async void Import_OnClick(object? sender, RoutedEventArgs e)
 {
-    var files = Directory.GetFiles(_folder, "*.md");
+    string[] files = Directory.GetFiles(_folder, "*.md");
 
     bool finished = await Dialog.Progress.Open(this, "Importing", $"Importing {files.Length} notes…",
         async (progress, ct) =>
         {
-            for (var i = 0; i < files.Length; i++)
+            for (int i = 0; i < files.Length; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 await _library.ImportAsync(files[i], ct);
@@ -47,18 +47,18 @@ The toast stays until you `Complete` or `Dismiss` it. It's indeterminate by defa
 ```csharp
 private async Task SyncAsync()
 {
-    using var cts = new CancellationTokenSource();
-    var toast = Toast.ShowProgress(this, "Syncing…", isIndeterminate: false,
+    using CancellationTokenSource cts = new();
+    ToastHandle toast = Toast.ShowProgress(this, "Syncing…", isIndeterminate: false,
         cancelText: "Cancel", cancel: cts.Cancel);
 
     try
     {
-        var changes = await _server.GetChangesAsync(cts.Token);
-        for (var i = 0; i < changes.Count; i++)
+        IReadOnlyList<Change> changes = await _server.GetChangesAsync(cts.Token);
+        for (int i = 0; i < changes.Count; i++)
         {
             // Flaky network: try each change up to 5 times with backoff
             await Retry.ExecuteAsync(() => _store.ApplyAsync(changes[i], cts.Token),
-                maxRetries: 5, cancellationToken: cts.Token);
+                new RetryOptions { MaxAttempts = 5 }, cts.Token);
             toast.Report((i + 1) / (double)changes.Count);    // 0–1
         }
         toast.Complete($"Synced {changes.Count} changes");
@@ -76,7 +76,7 @@ private async Task SyncAsync()
 }
 ```
 
-`Retry.ExecuteAsync` retries on **any** exception, including `OperationCanceledException`. The token only cancels the delays between attempts, so make the action itself honor it too.
+`Retry.ExecuteAsync` retries on any exception unless you set `RetryOptions.ShouldRetry`. When every attempt fails it throws a `MaxRetriesException` whose `InnerException` is the last failure, so the toast above shows "Gave up after 5 attempts: …". Once the token is cancelled it stops retrying and cancels the wait, and the `OperationCanceledException` comes out unwrapped, but it can't stop an attempt that's already running, so pass the token into the action too.
 
 ## Page-level work with `DataContextBase.RunAsync`
 
@@ -89,9 +89,9 @@ public sealed class ReportsPageDataContext(IReportService reports) : DataContext
 
     public Task RefreshAsync() => RunAsync(async () =>
     {
-        var latest = await Retry.ExecuteAsync(() => reports.GetAllAsync());
+        IReadOnlyList<Report> latest = await Retry.ExecuteAsync(() => reports.GetAllAsync());
         Items.Clear();
-        foreach (var report in latest)
+        foreach (Report report in latest)
             Items.Add(report);
     });
 }

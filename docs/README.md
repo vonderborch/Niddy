@@ -21,36 +21,43 @@ Walkthroughs that combine several classes.
 
 ## Niddy.Core
 
-UI-independent helpers. Namespaces are `Niddy.<Folder>`, e.g. `Niddy.Settings`.
+UI-independent building blocks. Namespaces follow the folders, e.g. `Niddy.Core.Settings` or `Niddy.Core.IO.Archives`; root types are in `Niddy.Core`.
 
 | Folder | Pages |
 |---|---|
-| Helpers | [ByteHelpers](Niddy.Core/Helpers/ByteHelpers.md) · [DisposingHelpers](Niddy.Core/Helpers/DisposingHelpers.md) · [Humanize](Niddy.Core/Helpers/Humanize.md) · [IOHelpers](Niddy.Core/Helpers/IOHelpers.md) · [JsonHelpers](Niddy.Core/Helpers/JsonHelpers.md) · [ListExtensions](Niddy.Core/Helpers/ListExtensions.md) · [PathHelpers](Niddy.Core/Helpers/PathHelpers.md) · [Retry](Niddy.Core/Helpers/Retry.md) · [StreamHelpers](Niddy.Core/Helpers/StreamHelpers.md) · [StringExtensions](Niddy.Core/Helpers/StringExtensions.md) · [UrlHelpers](Niddy.Core/Helpers/UrlHelpers.md) |
-| IO | [AppPaths](Niddy.Core/IO/AppPaths.md): per-platform app folders · [AtomicFile](Niddy.Core/IO/AtomicFile.md): crash-safe writes · [DebouncedFileWatcher](Niddy.Core/IO/DebouncedFileWatcher.md) |
-| Logging | [NiddyLogging](Niddy.Core/Logging/NiddyLogging.md): one-line file logging · [FileLoggerProvider](Niddy.Core/Logging/FileLoggerProvider.md) · [FileLoggerOptions](Niddy.Core/Logging/FileLoggerOptions.md) |
+| (root) | [DisposableExtensions](Niddy.Core/DisposableExtensions.md): `value.DisposeIfPossible()` · [UrlLauncher](Niddy.Core/UrlLauncher.md): open a URL without a UI framework |
+| Collections | [ListExtensions](Niddy.Core/Collections/ListExtensions.md) |
+| IO | [AppPaths](Niddy.Core/IO/AppPaths.md): per-platform app folders · [AtomicFile](Niddy.Core/IO/AtomicFile.md): crash-safe writes · [DebouncedFileWatcher](Niddy.Core/IO/DebouncedFileWatcher.md) · [FileSystemExtensions](Niddy.Core/IO/FileSystemExtensions.md): `File`/`Directory`/`Path` extensions such as deletes that retry · [StreamExtensions](Niddy.Core/IO/StreamExtensions.md) |
+| IO.Archives | [Archive](Niddy.Core/IO/Archives/Archive.md): zip, tar and tar.gz, with `ArchiveFormat`, the options records, `ArchiveEntryInfo` and `ArchiveProgress` |
+| IO.Backups | [BackupExtensions](Niddy.Core/IO/Backups/BackupExtensions.md): `File.Backup` / `Directory.Backup`, with `BackupNaming` |
+| Logging | [NiddyLogging](Niddy.Core/Logging/NiddyLogging.md): one-line file logging, other providers |
+| Logging.Files | [FileLoggerProvider](Niddy.Core/Logging/Files/FileLoggerProvider.md) · [FileLoggerOptions](Niddy.Core/Logging/Files/FileLoggerOptions.md) |
+| Logging.Batching | [BatchingLoggerProvider](Niddy.Core/Logging/Batching/BatchingLoggerProvider.md): base for your own providers (database, network), with `LogEntry`, `BatchingLoggerOptions` and `LogWriterThread` |
+| Resilience | [Retry](Niddy.Core/Resilience/Retry.md): retry with exponential backoff, `MaxRetriesException` |
 | Results | [Result](Niddy.Core/Results/Result.md) · [Error](Niddy.Core/Results/Error.md) · [Option](Niddy.Core/Results/Option.md) |
-| Security | [ISecureStorage](Niddy.Core/Security/ISecureStorage.md) · [SecureStorageFactory](Niddy.Core/Security/SecureStorageFactory.md): keychain / credential manager / encrypted files · [EncryptedFileSecureStorage](Niddy.Core/Security/EncryptedFileSecureStorage.md) |
+| Security | [ISecureStorage](Niddy.Core/Security/ISecureStorage.md) · [SecureStorageFactory](Niddy.Core/Security/SecureStorageFactory.md): keychain / credential manager / encrypted files, plus pluggable providers (`SecureStorageProvider`, `SecureStorageContext`) · [EncryptedFileSecureStorage](Niddy.Core/Security/EncryptedFileSecureStorage.md) |
+| Serialization | [JsonFile](Niddy.Core/Serialization/JsonFile.md): atomic JSON files · [JsonExtensions](Niddy.Core/Serialization/JsonExtensions.md): `JsonSerializerOptions.Niddy`, `JsonSerializer.DeserializeOrDefault` |
 | Settings | [SettingsStore\<T>](Niddy.Core/Settings/SettingsStore.md): typed JSON settings with change events and file watching |
+| SystemInfo | [Platform](Niddy.Core/SystemInfo/Platform.md): OS and version, architecture, target triple, memory and GPUs; declaring supported OSes |
+| Text | [Humanize](Niddy.Core/Text/Humanize.md): sizes, counts, durations, relative times · [StringExtensions](Niddy.Core/Text/StringExtensions.md) |
 | Threading | [Debouncer](Niddy.Core/Threading/Debouncer.md) · [Throttler](Niddy.Core/Threading/Throttler.md) · [Guard](Niddy.Core/Threading/Guard.md) · [AtomicOperations](Niddy.Core/Threading/AtomicOperations.md) |
 
 ## Niddy.Avalonia
 
-Avalonia app building blocks. Namespaces are `Niddy.Avalonia.<Folder>`. In XAML, `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every folder except Utilities.
+Avalonia app building blocks. Namespaces follow the folders, e.g. `Niddy.Avalonia.PageSystem`; root types are in `Niddy.Avalonia`. In XAML, `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every public namespace.
 
 | Folder | Pages |
 |---|---|
 | Hosting | [NiddyApp](Niddy.Avalonia/Hosting/NiddyApp.md): the whole app from one `Configure` method · [NiddyAppOptions](Niddy.Avalonia/Hosting/NiddyAppOptions.md) · [AppShell](Niddy.Avalonia/Hosting/AppShell.md) · [GlobalExceptionHandler](Niddy.Avalonia/Hosting/GlobalExceptionHandler.md) |
-| PageSystem | [Page](Niddy.Avalonia/PageSystem/Page.md) · [PageView](Niddy.Avalonia/PageSystem/PageView.md) · [PageControlDataContext](Niddy.Avalonia/PageSystem/PageControlDataContext.md) · [PageRegistrationAttribute](Niddy.Avalonia/PageSystem/PageRegistrationAttribute.md) · [PageRegistry](Niddy.Avalonia/PageSystem/PageRegistry.md) · [PageRegistration](Niddy.Avalonia/PageSystem/PageRegistration.md) · [PageId](Niddy.Avalonia/PageSystem/PageId.md) · [PageMenu](Niddy.Avalonia/PageSystem/PageMenu.md) · [PageMenuItem](Niddy.Avalonia/PageSystem/PageMenuItem.md) · [PageIcon](Niddy.Avalonia/PageSystem/PageIcon.md) · [PageIconAttribute](Niddy.Avalonia/PageSystem/PageIconAttribute.md) · [PageIconView](Niddy.Avalonia/PageSystem/PageIconView.md) · [PageShortcut](Niddy.Avalonia/PageSystem/PageShortcut.md) |
-| Dialogs | [Dialog](Niddy.Avalonia/Dialogs/Dialog.md): eleven built-in dialogs · [DialogBase\<T>](Niddy.Avalonia/Dialogs/DialogBase.md) · [DialogLayout](Niddy.Avalonia/Dialogs/DialogLayout.md) · [DialogOverlayHost](Niddy.Avalonia/Dialogs/DialogOverlayHost.md) |
-| Toast | [Toast](Niddy.Avalonia/Toast/Toast.md) · [ToastHandle](Niddy.Avalonia/Toast/ToastHandle.md) · [ToastHost](Niddy.Avalonia/Toast/ToastHost.md) |
+| PageSystem | [Page](Niddy.Avalonia/PageSystem/Page.md) · [PageView](Niddy.Avalonia/PageSystem/PageView.md) · [PageControlDataContext](Niddy.Avalonia/PageSystem/PageControlDataContext.md) · [PageId](Niddy.Avalonia/PageSystem/PageId.md) · [PageShortcut](Niddy.Avalonia/PageSystem/PageShortcut.md) · [PageRegistrationAttribute](Niddy.Avalonia/PageSystem/PageRegistrationAttribute.md) · [PageRegistry](Niddy.Avalonia/PageSystem/PageRegistry.md): also `IPageProvider` · [PageRegistration](Niddy.Avalonia/PageSystem/PageRegistration.md) · [PageMenu](Niddy.Avalonia/PageSystem/PageMenu.md) · [PageMenuItem](Niddy.Avalonia/PageSystem/PageMenuItem.md) · [PageIcon](Niddy.Avalonia/PageSystem/PageIcon.md) · [PageIconAttribute](Niddy.Avalonia/PageSystem/PageIconAttribute.md) · [PageIconView](Niddy.Avalonia/PageSystem/PageIconView.md) |
+| Dialogs | [Dialog](Niddy.Avalonia/Dialogs/Dialog.md): eleven built-in dialogs, plus `TableColumn<T>` · [DialogBase\<T>](Niddy.Avalonia/Dialogs/DialogBase.md) · [DialogLayout](Niddy.Avalonia/Dialogs/DialogLayout.md) · [DialogOverlayHost](Niddy.Avalonia/Dialogs/DialogOverlayHost.md) |
+| Toasts | [Toast](Niddy.Avalonia/Toasts/Toast.md) · [ToastHandle](Niddy.Avalonia/Toasts/ToastHandle.md) · [ToastHost](Niddy.Avalonia/Toasts/ToastHost.md) |
 | State | [UiStateStore](Niddy.Avalonia/State/UiStateStore.md) · [WindowMemory](Niddy.Avalonia/State/WindowMemory.md) · [LayoutMemory](Niddy.Avalonia/State/LayoutMemory.md) |
 | Converters | [BoolToValueConverter](Niddy.Avalonia/Converters/BoolToValueConverter.md) · [CollectionConverters](Niddy.Avalonia/Converters/CollectionConverters.md) · [EnumToBoolConverter](Niddy.Avalonia/Converters/EnumToBoolConverter.md) · [EnumValuesExtension](Niddy.Avalonia/Converters/EnumValuesExtension.md) · [HumanizeConverters](Niddy.Avalonia/Converters/HumanizeConverters.md) |
 | DataContexts | [DataContextBase](Niddy.Avalonia/DataContexts/DataContextBase.md) |
-| FilePicker | [FilePicker](Niddy.Avalonia/FilePicker/FilePicker.md) |
 | Layout | [Responsive](Niddy.Avalonia/Layout/Responsive.md) |
 | Theme | [ThemeManager](Niddy.Avalonia/Theme/ThemeManager.md) |
-| Utilities | [UriLauncher](Niddy.Avalonia/Utilities/UriLauncher.md) · [WindowNotification](Niddy.Avalonia/Utilities/WindowNotification.md) |
-| (root) | [ScreenPlacement](Niddy.Avalonia/ScreenPlacement.md) |
+| (root) | [FilePicker](Niddy.Avalonia/FilePicker.md) · [ScreenPlacement](Niddy.Avalonia/ScreenPlacement.md) · [UriLauncher](Niddy.Avalonia/UriLauncher.md) · [WindowNotification](Niddy.Avalonia/WindowNotification.md) |
 
 ## Niddy.Avalonia.Generators
 

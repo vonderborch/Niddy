@@ -1,3 +1,4 @@
+
 namespace Niddy.Avalonia.PageSystem;
 
 /// <summary>The direction of a navigation.</summary>

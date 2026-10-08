@@ -2,7 +2,7 @@
 
 `Niddy.Avalonia.Converters` · Niddy.Avalonia · [source](../../../src/Niddy.Avalonia/Converters/HumanizeConverters.cs)
 
-Converters that format values for people using [`Humanize`](../../Niddy.Core/Helpers/Humanize.md): file sizes, durations, relative times and large counts. Values of the wrong type convert to null.
+Converters that format values for people using [`Humanize`](../../Niddy.Core/Text/Humanize.md): file sizes, durations, relative times and large counts. Values of the wrong type convert to null.
 
 ## API
 
@@ -30,4 +30,4 @@ To keep relative times current, raise a property change on a timer (e.g. once a 
 
 ## See also
 
-- [Humanize](../../Niddy.Core/Helpers/Humanize.md)
+- [Humanize](../../Niddy.Core/Text/Humanize.md)

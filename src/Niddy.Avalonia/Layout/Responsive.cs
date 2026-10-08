@@ -48,7 +48,7 @@ public static class Responsive
     {
         NarrowBelowProperty = AvaloniaProperty.RegisterAttached<Control, double>("NarrowBelow", typeof(Responsive), double.NaN);
         WideAboveProperty = AvaloniaProperty.RegisterAttached<Control, double>("WideAbove", typeof(Responsive), double.NaN);
-        SizeClassProperty = AvaloniaProperty.RegisterAttached<Control, string>("SizeClass", typeof(Responsive));
+        SizeClassProperty = AvaloniaProperty.RegisterAttached<Control, string?>("SizeClass", typeof(Responsive));
         NarrowBelowProperty.Changed.AddClassHandler<Control>((control, _) =>
         {
             Track(control);

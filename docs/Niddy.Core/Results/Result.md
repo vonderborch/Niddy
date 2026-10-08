@@ -1,6 +1,6 @@
 # Result
 
-`Niddy.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Result.cs)
+`Niddy.Core.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Result.cs)
 
 `Result` and `Result<T>` hold either success (with a value, for `Result<T>`) or an [`Error`](Error.md), so an expected failure can be returned rather than thrown. Both are readonly structs. `default` is a failure with `Error.Uninitialized`, so a result that was never assigned is never mistaken for success.
 
@@ -33,7 +33,7 @@
 | `OnSuccess(Action<T>)` / `OnFailure(Action<Error>)` | |
 | `ToOption()` | [`Option<T>`](Option.md); the error is dropped. |
 | `ToResult()` | Drops the value. |
-| `Deconstruct(out bool isSuccess, out T? value, out Error? error)` | `var (ok, value, error) = result;` |
+| `Deconstruct(out bool isSuccess, out T? value, out Error? error)` | `(bool ok, T? value, Error? error) = result;` |
 | implicit `T → Result<T>`, `Error → Result<T>`, `Result<T> → Result` | |
 
 `ResultException` is an `InvalidOperationException` with an `Error` property; its inner exception is `Error.Exception`.
@@ -41,13 +41,13 @@
 ## Examples
 
 ```csharp
-using Niddy.Results;
+using Niddy.Core.Results;
 
 public Result<User> FindUser(string id)
 {
     if (string.IsNullOrWhiteSpace(id))
         return new Error("An ID is required.", "InvalidId");   // Error → Result<User>
-    var user = _db.Find(id);
+    User? user = _db.Find(id);
     if (user is null)
         return Result<User>.Failure("Not found", "NotFound");
     return user;                                           // User → Result<User>
@@ -71,10 +71,10 @@ string message = order.Match(
 Wrapping code that throws:
 
 ```csharp
-Result<Config> config = Result.Try(() => JsonHelpers.DeserializeFromFile<Config>(path)!);
+Result<Config> config = Result.Try(() => JsonFile.Read<Config>(path)!);
 Result<string> page = await Result.TryAsync(() => http.GetStringAsync(url, ct));
 
-if (!page.TryGetValue(out var html, out var error))
+if (!page.TryGetValue(out string html, out Error? error))
     logger.LogWarning(error!.Exception, "Download failed: {Error}", error);
 ```
 

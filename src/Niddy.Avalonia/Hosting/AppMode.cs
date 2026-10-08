@@ -15,7 +15,7 @@ public enum AppMode
     Desktop,
     /// <summary>
     ///     A full-screen view, overlay dialogs and toasts at the bottom center. On desktop, the main window is
-    ///     phone-sized (see <see cref="MobilePreviewWidth" />), to preview the mobile layout.
+    ///     phone-sized (see <see cref="NiddyAppOptions.MobilePreviewWidth" />), to preview the mobile layout.
     /// </summary>
     Mobile
 }

@@ -1,6 +1,6 @@
 # Error
 
-`Niddy.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Error.cs)
+`Niddy.Core.Results` · Niddy.Core · [source](../../../src/Niddy.Core/Results/Error.cs)
 
 Why a [`Result`](Result.md) failed: a message for people, an optional machine-readable code, and the exception behind it, if any. It's a record, so two errors with the same values are equal.
 
@@ -17,7 +17,7 @@ Why a [`Result`](Result.md) failed: a message for people, an optional machine-re
 ## Examples
 
 ```csharp
-using Niddy.Results;
+using Niddy.Core.Results;
 
 Error notFound = new("The project doesn't exist.", "NotFound");
 Error simple = "Something went wrong.";             // no code

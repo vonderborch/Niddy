@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Niddy.Threading;
+namespace Niddy.Core.Threading;
 
 /// <summary>
 /// Atomic operations for use in multithreaded scenarios.
@@ -13,8 +13,10 @@ public static class AtomicOperations
     /// </summary>
     public static bool CompareAndSwap<T>(ref T location, T newValue, T expected)
     {
-        T x = Interlocked.CompareExchange(ref location, newValue, expected);
-        return EqualityComparer<T>.Default.Equals(x, expected);
+        ArgumentNullException.ThrowIfNull(location);
+        T value = Interlocked.CompareExchange(ref location!, newValue, expected);
+        bool output = EqualityComparer<T>.Default.Equals(value, expected);
+        return output;
     }
 
     /// <summary>
@@ -23,8 +25,10 @@ public static class AtomicOperations
     /// </summary>
     public static bool CompareAndSwap<T>(ref T location, T newValue, T expected, out T original)
     {
-        original = Interlocked.CompareExchange(ref location, newValue, expected);
-        return EqualityComparer<T>.Default.Equals(original, expected);
+        ArgumentNullException.ThrowIfNull(location);
+        original = Interlocked.CompareExchange(ref location!, newValue, expected);
+        bool output = EqualityComparer<T>.Default.Equals(original, expected);
+        return output;
     }
 
     /// <summary>

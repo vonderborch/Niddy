@@ -1,4 +1,4 @@
-using Niddy.Security;
+using Niddy.Core.Security;
 
 namespace Niddy.Core.Tests;
 
@@ -9,13 +9,15 @@ public sealed class EncryptedFileSecureStorageTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_directory))
+        {
             Directory.Delete(_directory, recursive: true);
+        }
     }
 
     [Fact]
     public void SetToken_RoundTripsAndNullRemoves()
     {
-        var storage = new EncryptedFileSecureStorage(_directory, "tests");
+        EncryptedFileSecureStorage storage = new(_directory, "tests");
 
         Assert.False(storage.TokenExists("key"));
         storage.SetToken("key", "secret value");
@@ -30,11 +32,13 @@ public sealed class EncryptedFileSecureStorageTests : IDisposable
     [Fact]
     public void StoredFilesDoNotContainThePlainText()
     {
-        var storage = new EncryptedFileSecureStorage(_directory, "tests");
+        EncryptedFileSecureStorage storage = new(_directory, "tests");
         storage.SetToken("key", "plain-text-marker");
 
-        foreach (var file in Directory.EnumerateFiles(_directory, "*", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(_directory, "*", SearchOption.AllDirectories))
+        {
             Assert.DoesNotContain("plain-text-marker", File.ReadAllText(file));
+        }
     }
 
     [Fact]

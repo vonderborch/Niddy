@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Niddy.Avalonia.Dialogs;
+using Niddy.Avalonia.Dialogs.BuiltIn;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -12,8 +13,8 @@ public class MoreDialogTests
 {
     private static (DialogOverlayHost Host, TextBlock Inner) ShowOverlayHost()
     {
-        var inner = new TextBlock();
-        var host = new DialogOverlayHost { Content = inner };
+        TextBlock inner = new();
+        DialogOverlayHost host = new() { Content = inner };
         new Window { Width = 1000, Height = 800, Content = host }.Show();
         return (host, inner);
     }
@@ -32,11 +33,11 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task ColorDialog_ReturnsThePickedColor()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Color.Open(inner, "Pick", Colors.Red, displayMode: DialogDisplayMode.Overlay);
+        Task<Color?> result = Dialog.Color.Open(inner, "Pick", Colors.Red, displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<ColorDialog>(host);
+        ColorDialog dialog = Shown<ColorDialog>(host);
         Assert.Equal(Colors.Red, dialog.SelectedColor);
 
         dialog.SelectedColor = Colors.Blue;
@@ -48,9 +49,9 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task ColorDialog_CancelReturnsNull()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Color.Open(inner, "Pick", displayMode: DialogDisplayMode.Overlay);
+        Task<Color?> result = Dialog.Color.Open(inner, "Pick", displayMode: DialogDisplayMode.Overlay);
         Pump();
         Click(Shown<ColorDialog>(host).ButtonCancel);
 
@@ -60,11 +61,11 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task MarkdownDialog_ShowsTheMarkdown()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Markdown.Open(inner, "Notes", "# Hello\n\n*World*", displayMode: DialogDisplayMode.Overlay);
+        Task<bool> result = Dialog.Markdown.Open(inner, "Notes", "# Hello\n\n*World*", displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<MarkdownDialog>(host);
+        MarkdownDialog dialog = Shown<MarkdownDialog>(host);
         Assert.Equal("# Hello\n\n*World*", dialog.Markdown);
         Assert.False(dialog.ButtonCancel.IsVisible);
 
@@ -75,11 +76,11 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task MarkdownDialog_WithCancelReturnsFalse()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Markdown.Open(inner, "License", "Terms", okButtonText: "Accept", cancelButtonText: "Decline", displayMode: DialogDisplayMode.Overlay);
+        Task<bool> result = Dialog.Markdown.Open(inner, "License", "Terms", okButtonText: "Accept", cancelButtonText: "Decline", displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<MarkdownDialog>(host);
+        MarkdownDialog dialog = Shown<MarkdownDialog>(host);
         Assert.True(dialog.ButtonCancel.IsVisible);
 
         Click(dialog.ButtonCancel);
@@ -89,13 +90,13 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task TableDialog_BuildsColumns()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Table.Open(inner, "People", "", People,
+        Task result = Dialog.Table.Open(inner, "People", "", People,
             [new TableColumn<Person>("Name", p => p.Name), new TableColumn<Person>("Age", p => p.Age) { AlignRight = true }],
             displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<TableDialog>(host);
+        TableDialog dialog = Shown<TableDialog>(host);
         Assert.Equal(["Name", "Age"], dialog.Grid.Columns.Select(c => c.Header as string));
         Assert.False(dialog.ButtonCancel.IsVisible);
 
@@ -106,11 +107,11 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task TableDialog_PickReturnsTheSelectedItem()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Table.Pick(inner, "Pick someone", "", People, displayMode: DialogDisplayMode.Overlay);
+        Task<Person?> result = Dialog.Table.Pick(inner, "Pick someone", "", People, displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<TableDialog>(host);
+        TableDialog dialog = Shown<TableDialog>(host);
         Assert.True(dialog.Grid.AutoGenerateColumns);
         Assert.False(dialog.ButtonOk.IsEnabled);
 
@@ -124,9 +125,9 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task TableDialog_PickCancelReturnsDefault()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Table.Pick(inner, "Pick someone", "", People, displayMode: DialogDisplayMode.Overlay);
+        Task<Person?> result = Dialog.Table.Pick(inner, "Pick someone", "", People, displayMode: DialogDisplayMode.Overlay);
         Pump();
         Click(Shown<TableDialog>(host).ButtonCancel);
 
@@ -136,12 +137,12 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task WebDialog_ClosesWhenANavigationMatches()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Web.Open(inner, "Sign in", new Uri("https://example.com/login"),
+        Task<Uri?> result = Dialog.Web.Open(inner, "Sign in", new Uri("https://example.com/login"),
             closeWhen: uri => uri.AbsolutePath == "/done", displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<WebDialog>(host);
+        WebDialog dialog = Shown<WebDialog>(host);
         Assert.Equal(new Uri("https://example.com/login"), dialog.CurrentAddress);
         Assert.True(dialog.ButtonOpenInBrowser.IsVisible);
 
@@ -154,11 +155,11 @@ public class MoreDialogTests
     [AvaloniaFact]
     public async Task WebDialog_CloseReturnsTheCurrentAddress()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Web.OpenHtml(inner, "Help", "<p>Hi</p>", displayMode: DialogDisplayMode.Overlay);
+        Task<Uri?> result = Dialog.Web.OpenHtml(inner, "Help", "<p>Hi</p>", displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<WebDialog>(host);
+        WebDialog dialog = Shown<WebDialog>(host);
         Assert.False(dialog.ButtonOpenInBrowser.IsVisible);
 
         Click(dialog.ButtonClose);
@@ -168,12 +169,12 @@ public class MoreDialogTests
     [AvaloniaFact]
     public void ExceptionDialog_CopiesTheFullException()
     {
-        var (host, inner) = ShowOverlayHost();
-        var exception = new InvalidOperationException("Outer", new ArgumentException("Inner"));
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
+        InvalidOperationException exception = new("Outer", new ArgumentException("Inner"));
 
         _ = Dialog.Exception.Open(inner, "Oops", "", exception, "", displayMode: DialogDisplayMode.Overlay);
         Pump();
-        var dialog = Shown<ExceptionDialog>(host);
+        ExceptionDialog dialog = Shown<ExceptionDialog>(host);
 
         Assert.True(dialog.ButtonCopyDetails.IsVisible);
         Assert.Contains("Inner", dialog.Details);

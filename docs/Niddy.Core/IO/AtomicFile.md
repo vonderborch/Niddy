@@ -1,6 +1,6 @@
 # AtomicFile
 
-`Niddy.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/AtomicFile.cs)
+`Niddy.Core.IO` · Niddy.Core · [source](../../../src/Niddy.Core/IO/AtomicFile.cs)
 
 Writes files so readers only ever see the old contents or the new ones, never a half-written file, even if the app crashes or the power fails mid-write. Contents go to a temporary file in the same directory, which is flushed and then renamed over the target. The directory is created if needed; on Windows the rename is retried briefly if another process (e.g. a virus scanner) holds the file.
 
@@ -15,12 +15,12 @@ Writes files so readers only ever see the old contents or the new ones, never a 
 | `Write(string path, Action<Stream> write)` | Write through a stream, e.g. for a serializer. |
 | `WriteAsync(string path, Func<Stream, CancellationToken, Task> write, CancellationToken ct = default)` | |
 
-If the delegate throws, the temporary file is deleted and the target is untouched.
+If the delegate throws, the temporary file is deleted (retried briefly with [`File.DeleteWithRetry`](FileSystemExtensions.md)) and the target is untouched. The original exception is always the one thrown.
 
 ## Examples
 
 ```csharp
-using Niddy.IO;
+using Niddy.Core.IO;
 
 AtomicFile.WriteAllText(notesPath, editor.Text);
 
@@ -30,4 +30,4 @@ await AtomicFile.WriteAsync(exportPath, async (stream, ct) =>
 
 ## See also
 
-- [JsonHelpers](../Helpers/JsonHelpers.md) `SerializeToFile` and [SettingsStore](../Settings/SettingsStore.md) both write through `AtomicFile`.
+- [JsonFile](../Serialization/JsonFile.md) `Write` and [SettingsStore](../Settings/SettingsStore.md) both write through `AtomicFile`.

@@ -143,23 +143,28 @@ public sealed class PageControlDataContext : ReactiveObject
     /// <exception cref="ArgumentOutOfRangeException">The page isn't registered.</exception>
     public bool NavigateTo(PageId pageId, bool addToBackStack = true, object? parameter = null)
     {
-        var registration = FindRegistered(pageId);
-        var parent = ParentPage is { } viewParent && registration.Parents.Contains(viewParent) ? viewParent : null;
+        PageRegistration registration = FindRegistered(pageId);
+        PageId? parent = ParentPage is { } viewParent && registration.Parents.Contains(viewParent) ? viewParent : null;
         return NavigateToRegistered(registration, parent, addToBackStack, parameter);
     }
 
     /// <summary>Navigates to a registered page reached from <paramref name="parent"/>, e.g. from a <see cref="PageMenu"/> tree.</summary>
     internal bool NavigateTo(PageId pageId, PageId? parent, bool addToBackStack)
     {
-        var registration = FindRegistered(pageId);
+        PageRegistration registration = FindRegistered(pageId);
         if (parent is not null && !registration.Parents.Contains(parent))
+        {
             parent = null;
+        }
 
         // Already showing the page: reaching it from a different parent only changes where it sits in the tree.
         if (_current?.Registration == registration)
         {
             if (parent is null || ParentOf(_current) == parent || LockToCurrentPage)
+            {
                 return false;
+            }
+
             _current = _current with { Parent = parent };
             CurrentParentPage = parent;
             return true;
@@ -181,12 +186,17 @@ public sealed class PageControlDataContext : ReactiveObject
     /// <inheritdoc cref="NavigateTo(PageId, bool, object?)"/>
     public bool NavigateToChild<TPage>(bool addToBackStack = true, object? parameter = null) where TPage : Page
     {
-        var registration = FindRegistered(PageId<TPage>.Instance);
+        PageRegistration registration = FindRegistered(PageId<TPage>.Instance);
         if (_current?.Registration is not { } current || !registration.Parents.Contains(current.PageId))
+        {
             throw new InvalidOperationException($"{typeof(TPage).Name} isn't a child page of {Describe(_current)}.");
+        }
 
         if (_current.Page.ChildView is { } childView)
+        {
             return childView.PageControlDataContext.NavigateTo(registration.PageId, addToBackStack, parameter);
+        }
+
         return NavigateToRegistered(registration, current.PageId, addToBackStack, parameter);
     }
 
@@ -198,15 +208,19 @@ public sealed class PageControlDataContext : ReactiveObject
     /// <inheritdoc cref="NavigateTo(PageId, bool, object?)"/>
     public bool NavigateToSibling<TPage>(bool addToBackStack = true, object? parameter = null) where TPage : Page
     {
-        var registration = FindRegistered(PageId<TPage>.Instance);
+        PageRegistration registration = FindRegistered(PageId<TPage>.Instance);
         if (_current?.Registration is not { } current)
+        {
             throw new InvalidOperationException($"{typeof(TPage).Name} isn't a sibling of {Describe(_current)}.");
+        }
 
         // Prefer the parent the current page was reached from; otherwise any parent the two pages share.
-        var candidates = ParentOf(_current) is { } known ? [known] : current.Parents;
-        var parent = candidates.FirstOrDefault(p => registration.Parents.Contains(p));
+        IReadOnlyList<PageId> candidates = ParentOf(_current) is { } known ? [known] : current.Parents;
+        PageId? parent = candidates.FirstOrDefault(p => registration.Parents.Contains(p));
         if (parent is null && !(current.IsTopLevel && registration.IsTopLevel))
+        {
             throw new InvalidOperationException($"{typeof(TPage).Name} isn't a sibling of {current.DisplayName}.");
+        }
 
         return NavigateToRegistered(registration, parent, addToBackStack, parameter);
     }
@@ -224,9 +238,11 @@ public sealed class PageControlDataContext : ReactiveObject
     public bool NavigateToParent(bool addToBackStack = true, object? parameter = null)
     {
         if (ParentOf(_current) is not { } parent || parent == ParentPage || PageRegistry.Find(parent) is not { } registration)
+        {
             return false;
+        }
 
-        var grandparent = registration.Parents.Count == 1 ? registration.Parents[0] : null;
+        PageId? grandparent = registration.Parents.Count == 1 ? registration.Parents[0] : null;
         return NavigateToRegistered(registration, grandparent, addToBackStack, parameter);
     }
 
@@ -256,10 +272,13 @@ public sealed class PageControlDataContext : ReactiveObject
     /// <summary>Forgets all previous pages, so <see cref="CanGoBack"/> becomes false.</summary>
     public void ClearBackStack()
     {
-        var removed = _backStack.ToArray();
+        Entry[] removed = _backStack.ToArray();
         _backStack.Clear();
-        foreach (var entry in removed)
+        foreach (Entry entry in removed)
+        {
             CloseIfUnused(entry);
+        }
+
         CanGoBack = false;
     }
 
@@ -277,7 +296,7 @@ public sealed class PageControlDataContext : ReactiveObject
 
     /// <summary>The parent of an entry: the one it was reached from, or its only parent.</summary>
     private static PageId? ParentOf(Entry? entry) =>
-        entry?.Parent ?? (entry?.Registration?.Parents is [var only] ? only : null);
+        entry?.Parent ?? (entry?.Registration?.Parents is [PageId only] ? only : null);
 
     private static string Describe(Entry? entry) =>
         entry is null ? "nothing (no page is shown)" : entry.Registration?.DisplayName ?? entry.Page.GetType().Name;
@@ -285,7 +304,10 @@ public sealed class PageControlDataContext : ReactiveObject
     private bool NavigateToRegistered(PageRegistration registration, PageId? parent, bool addToBackStack, object? parameter)
     {
         if (_current?.Registration == registration && parameter is null)
+        {
             return false;
+        }
+
         return NavigateForward(registration, parent, registration.CreatePage, addToBackStack, parameter, askCurrentPage: true);
     }
 
@@ -299,12 +321,14 @@ public sealed class PageControlDataContext : ReactiveObject
     )
     {
         if (LockToCurrentPage)
+        {
             return false;
+        }
 
-        var previous = _current;
+        Entry? previous = _current;
         if (askCurrentPage && previous is not null)
         {
-            var leaving = new PageNavigatingFromEventArgs(
+            PageNavigatingFromEventArgs leaving = new(
                 NavigationMode.Forward,
                 previous.Registration,
                 registration,
@@ -313,17 +337,21 @@ public sealed class PageControlDataContext : ReactiveObject
             );
             previous.Page.RaiseNavigatingFrom(leaving);
             if (leaving.Cancel)
+            {
                 return false;
+            }
         }
 
         // Create and attach the page before changing anything, so a failure leaves the current page in place.
-        var keepAlive = registration?.KeepAlive == true;
-        var page = keepAlive && _keptAlive.TryGetValue(registration!, out var kept) ? kept : create();
+        bool keepAlive = registration?.KeepAlive == true;
+        Page page = keepAlive && _keptAlive.TryGetValue(registration!, out Page? kept) ? kept : create();
         page.Attach(this, registration, _appDataContext());
         if (keepAlive)
+        {
             _keptAlive[registration!] = page;
+        }
 
-        var current = new Entry(page, registration, parent);
+        Entry current = new(page, registration, parent);
         _current = current;
         Entry? dropped = null;
         if (previous is not null)
@@ -339,7 +367,7 @@ public sealed class PageControlDataContext : ReactiveObject
             }
         }
 
-        var args = new PageNavigationEventArgs(NavigationMode.Forward, previous?.Registration, registration, parameter);
+        PageNavigationEventArgs args = new(NavigationMode.Forward, previous?.Registration, registration, parameter);
         Complete(previous, dropped, current, args);
         return true;
     }
@@ -347,12 +375,14 @@ public sealed class PageControlDataContext : ReactiveObject
     private bool GoBackCore(bool askCurrentPage)
     {
         if (_backStack.Count == 0 || LockToCurrentPage || _current is not { } previous)
+        {
             return false;
+        }
 
-        var target = _backStack[^1];
+        Entry target = _backStack[^1];
         if (askCurrentPage)
         {
-            var leaving = new PageNavigatingFromEventArgs(
+            PageNavigatingFromEventArgs leaving = new(
                 NavigationMode.Back,
                 previous.Registration,
                 target.Registration,
@@ -361,14 +391,16 @@ public sealed class PageControlDataContext : ReactiveObject
             );
             previous.Page.RaiseNavigatingFrom(leaving);
             if (leaving.Cancel)
+            {
                 return false;
+            }
         }
 
         _backStack.RemoveAt(_backStack.Count - 1);
         _current = target;
         target.Page.Attach(this, target.Registration, _appDataContext());
 
-        var args = new PageNavigationEventArgs(NavigationMode.Back, previous.Registration, target.Registration, null);
+        PageNavigationEventArgs args = new(NavigationMode.Back, previous.Registration, target.Registration, null);
         Complete(previous, previous, target, args);
         return true;
     }
@@ -379,7 +411,9 @@ public sealed class PageControlDataContext : ReactiveObject
         _present(current.Page, args.Mode);
         previous?.Page.RaiseNavigatedFrom(args);
         if (dropped is not null)
+        {
             CloseIfUnused(dropped);
+        }
 
         CurrentParentPage = ParentOf(current);
         CurrentPage = current.Registration;
@@ -392,7 +426,9 @@ public sealed class PageControlDataContext : ReactiveObject
 
         // The page may have navigated again from OnNavigatedTo; that navigation raised its own event.
         if (_current == current)
+        {
             Navigated?.Invoke(this, args);
+        }
     }
 
     /// <summary>Drops the oldest back stack entries beyond <see cref="MaxBackStackDepth"/>, closing their pages.</summary>
@@ -400,7 +436,7 @@ public sealed class PageControlDataContext : ReactiveObject
     {
         while (_backStack.Count > MaxBackStackDepth)
         {
-            var dropped = _backStack[0];
+            Entry dropped = _backStack[0];
             _backStack.RemoveAt(0);
             CloseIfUnused(dropped);
         }
@@ -408,9 +444,12 @@ public sealed class PageControlDataContext : ReactiveObject
 
     private void CloseIfUnused(Entry entry)
     {
-        var page = entry.Page;
+        Page page = entry.Page;
         if (entry.Registration?.KeepAlive == true || _current?.Page == page || _backStack.Any(e => e.Page == page))
+        {
             return;
+        }
+
         page.Close();
     }
 }

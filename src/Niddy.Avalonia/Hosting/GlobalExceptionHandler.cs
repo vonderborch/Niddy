@@ -120,7 +120,10 @@ public static class GlobalExceptionHandler
         lock (Sync)
         {
             if (_options is null)
+            {
                 return;
+            }
+
             Dispatcher.UIThread.UnhandledException -= OnDispatcherException;
             TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
             AppDomain.CurrentDomain.UnhandledException -= OnAppDomainException;
@@ -140,8 +143,8 @@ public static class GlobalExceptionHandler
 
     internal static bool Handle(Exception exception, UnhandledExceptionSource source)
     {
-        var options = _options ?? new GlobalExceptionHandlerOptions();
-        var logger = _logger;
+        GlobalExceptionHandlerOptions options = _options ?? new GlobalExceptionHandlerOptions();
+        ILogger logger = _logger;
 
         logger.Log(
             source == UnhandledExceptionSource.AppDomain ? LogLevel.Critical : LogLevel.Error,
@@ -149,7 +152,7 @@ public static class GlobalExceptionHandler
             "Unhandled exception ({Source})",
             source);
 
-        var args = new UnhandledExceptionOccurredEventArgs(exception, source, source switch
+        UnhandledExceptionOccurredEventArgs args = new(exception, source, source switch
         {
             UnhandledExceptionSource.UIThread => options.ShowDialog,
             UnhandledExceptionSource.UnobservedTask => options.ShowDialogForUnobservedTasks,
@@ -173,14 +176,20 @@ public static class GlobalExceptionHandler
         }
 
         if (args.Handled)
+        {
             return source != UnhandledExceptionSource.UIThread || options.KeepRunning;
+        }
 
         if (args.ShowDialog)
         {
             if (Dispatcher.UIThread.CheckAccess())
+            {
                 ShowDialog(exception, options);
+            }
             else
+            {
                 Dispatcher.UIThread.Post(() => ShowDialog(exception, options));
+            }
         }
 
         return source != UnhandledExceptionSource.UIThread || options.KeepRunning;
@@ -189,12 +198,14 @@ public static class GlobalExceptionHandler
     private static void OnDispatcherException(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
         if (Handle(e.Exception, UnhandledExceptionSource.UIThread))
+        {
             e.Handled = true;
+        }
     }
 
     private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        var exception = e.Exception.InnerExceptions.Count == 1 ? e.Exception.InnerExceptions[0] : e.Exception;
+        Exception exception = e.Exception.InnerExceptions.Count == 1 ? e.Exception.InnerExceptions[0] : e.Exception;
         Handle(exception, UnhandledExceptionSource.UnobservedTask);
         e.SetObserved();
     }
@@ -202,14 +213,18 @@ public static class GlobalExceptionHandler
     private static void OnAppDomainException(object? sender, UnhandledExceptionEventArgs e)
     {
         if (e.ExceptionObject is Exception exception)
+        {
             Handle(exception, UnhandledExceptionSource.AppDomain);
+        }
     }
 
     private static async void ShowDialog(Exception exception, GlobalExceptionHandlerOptions options)
     {
         // A failing timer or render callback would otherwise stack up one dialog per tick.
         if (_dialogOpen || FindParent() is not { } parent)
+        {
             return;
+        }
 
         _dialogOpen = true;
         try

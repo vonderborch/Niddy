@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Niddy.Helpers;
-using Niddy.IO;
+using Niddy.Core.Serialization;
+using Niddy.Core.IO;
 
-namespace Niddy.Settings;
+namespace Niddy.Core.Settings;
 
 /// <summary>Why <see cref="SettingsStore{T}.Changed"/> was raised.</summary>
 public enum SettingsChangeSource
@@ -27,6 +27,19 @@ public sealed class SettingsChangedEventArgs<T>(T settings, SettingsChangeSource
     public SettingsChangeSource Source { get; } = source;
 }
 
+/// <summary>Event data for <see cref="SettingsStore{T}.CorruptFileDetected"/>.</summary>
+public sealed class SettingsCorruptFileEventArgs(string filePath, Exception exception, bool isSetAside) : EventArgs
+{
+    /// <summary>The path of the file that could not be parsed.</summary>
+    public string FilePath { get; } = filePath;
+
+    /// <summary>The exception that was thrown when attempting to parse or read the file.</summary>
+    public Exception Exception { get; } = exception;
+
+    /// <summary>Whether the corrupt file was set aside (renamed to <c>*.bad</c>).</summary>
+    public bool IsSetAside { get; } = isSetAside;
+}
+
 /// <summary>
 /// Typed settings kept in a JSON file. Derive a class that names the file, then use <see cref="Current"/> to read and
 /// <see cref="Update"/> to change and save:
@@ -34,7 +47,7 @@ public sealed class SettingsChangedEventArgs<T>(T settings, SettingsChangeSource
 /// public sealed class AppSettingsStore(AppPaths paths)
 ///     : SettingsStore&lt;AppSettings&gt;(Path.Combine(paths.Config, "settings.json"));
 ///
-/// var store = new AppSettingsStore(paths);
+/// AppSettingsStore store = new(paths);
 /// store.Update(s =&gt; s.Theme = "Dark");
 /// </code>
 /// </summary>
@@ -55,36 +68,47 @@ public sealed class SettingsChangedEventArgs<T>(T settings, SettingsChangeSource
 public abstract class SettingsStore<T> : IDisposable where T : class, new()
 {
     private readonly Lock _gate = new();
-    private readonly JsonSerializerOptions _options;
+    private readonly JsonSerializerOptions _serializationOptions;
     private T? _current;
     private string? _lastWritten;
     private DebouncedFileWatcher? _watcher;
 
     /// <summary>Creates a store for <paramref name="filePath"/>.</summary>
     /// <param name="filePath">The JSON file. Its folder is created when first saving.</param>
-    /// <param name="options">The JSON options; defaults to <see cref="JsonHelpers.DefaultOptions"/>.</param>
-    protected SettingsStore(string filePath, JsonSerializerOptions? options = null)
+    /// <param name="serializationOptions">The JSON serializationOptions; defaults to <c>JsonSerializerOptions.Niddy</c>.</param>
+    /// <param name="overrideCorruptFile">Whether to set aside (rename to <c>*.bad</c>) a corrupt or unparseable settings file when reading it. Defaults to <see langword="true"/>.</param>
+    protected SettingsStore(string filePath, JsonSerializerOptions? serializationOptions = null, bool overrideCorruptFile = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        FilePath = Path.GetFullPath(filePath);
-        _options = options ?? JsonHelpers.DefaultOptions;
+        this.FilePath = Path.GetFullPath(filePath);
+        this._serializationOptions = serializationOptions ?? JsonSerializerOptions.Niddy;
+        this.OverrideCorruptFile = overrideCorruptFile;
     }
 
     /// <summary>The full path of the JSON file.</summary>
     public string FilePath { get; }
+
+    /// <summary>
+    /// Whether to set aside (rename to <c>*.bad</c>) a corrupt or unparseable settings file when reading it.
+    /// Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool OverrideCorruptFile { get; set; }
 
     /// <summary>The current settings, loaded from the file the first time they're read.</summary>
     public T Current
     {
         get
         {
-            lock (_gate)
-                return _current ??= Read();
+            lock (this._gate)
+            {
+                this._current ??= Read();
+                return this._current;
+            }
         }
     }
 
     /// <summary>Whether <see cref="Watch"/> is reloading the settings when the file changes.</summary>
-    public bool IsWatching => _watcher is not null;
+    public bool IsWatching => this._watcher is not null;
 
     /// <summary>
     /// Raised after the settings change through <see cref="Update"/>, <see cref="Reset"/> or <see cref="Load"/>, or
@@ -92,13 +116,21 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     /// </summary>
     public event EventHandler<SettingsChangedEventArgs<T>>? Changed;
 
+    /// <summary>
+    /// Raised when a settings file is found to be corrupt or unparseable.
+    /// </summary>
+    public event EventHandler<SettingsCorruptFileEventArgs>? CorruptFileDetected;
+
     /// <summary>(Re)reads the file, replacing <see cref="Current"/>, and raises <see cref="Changed"/>.</summary>
     /// <returns>The loaded settings.</returns>
     public T Load()
     {
         T settings;
-        lock (_gate)
-            settings = _current = Read();
+        lock (this._gate)
+        {
+            settings = this._current = Read();
+        }
+
         OnChanged(settings, SettingsChangeSource.Load);
         return settings;
     }
@@ -106,8 +138,10 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     /// <summary>Writes <see cref="Current"/> to the file.</summary>
     public void Save()
     {
-        lock (_gate)
-            Write(_current ??= Read());
+        lock (this._gate)
+        {
+            Write(this._current ??= Read());
+        }
     }
 
     /// <summary>Writes <see cref="Current"/> to the file without blocking the calling thread on disk.</summary>
@@ -121,9 +155,9 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     {
         ArgumentNullException.ThrowIfNull(change);
         T settings;
-        lock (_gate)
+        lock (this._gate)
         {
-            settings = _current ??= Read();
+            settings = this._current ??= Read();
             change(settings);
             Write(settings);
         }
@@ -136,9 +170,9 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     public T Reset()
     {
         T settings;
-        lock (_gate)
+        lock (this._gate)
         {
-            settings = _current = Prepare(CreateDefault());
+            settings = this._current = Prepare(CreateDefault());
             Write(settings);
         }
         OnChanged(settings, SettingsChangeSource.Reset);
@@ -152,31 +186,47 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     /// <param name="delay">How long the file must stop changing before it's reloaded; defaults to <see cref="DebouncedFileWatcher.DefaultDelay"/>.</param>
     public void Watch(TimeSpan? delay = null)
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            if (_watcher is not null)
+            if (this._watcher is not null)
+            {
                 return;
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            _watcher = DebouncedFileWatcher.ForFile(FilePath, delay, captureContext: false);
-            _watcher.Changed += (_, _) => ReloadIfChangedExternally();
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(this.FilePath)!);
+            this._watcher = DebouncedFileWatcher.ForFile(this.FilePath, delay, captureContext: false);
+            this._watcher.Changed += (_, _) => ReloadIfChangedExternally();
         }
     }
 
     /// <summary>Stops watching the file.</summary>
     public void StopWatching()
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            _watcher?.Dispose();
-            _watcher = null;
+            this._watcher?.Dispose();
+            this._watcher = null;
         }
     }
 
     /// <summary>Stops watching the file.</summary>
     public void Dispose()
     {
-        StopWatching();
+        this.Dispose(disposing: true);
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases what the store holds. Override it to release your own resources (e.g. save pending changes), and call
+    /// the base method.
+    /// </summary>
+    /// <param name="disposing">True when called from <see cref="Dispose()"/>.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            StopWatching();
+        }
     }
 
     /// <summary>Creates the settings used when there's no file, or it can't be read, or on <see cref="Reset"/>.</summary>
@@ -193,26 +243,36 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
 
     /// <summary>Raises <see cref="Changed"/>.</summary>
     protected virtual void OnChanged(T settings, SettingsChangeSource source) =>
-        Changed?.Invoke(this, new SettingsChangedEventArgs<T>(settings, source));
+        this.Changed?.Invoke(this, new SettingsChangedEventArgs<T>(settings, source));
+
+    /// <summary>Raises <see cref="CorruptFileDetected"/>.</summary>
+    /// <param name="filePath">The path of the file that could not be parsed.</param>
+    /// <param name="exception">The exception thrown during parsing.</param>
+    /// <param name="isSetAside">Whether the corrupt file was set aside (renamed to <c>*.bad</c>).</param>
+    protected virtual void OnCorruptFileDetected(string filePath, Exception exception, bool isSetAside) =>
+        this.CorruptFileDetected?.Invoke(this, new SettingsCorruptFileEventArgs(filePath, exception, isSetAside));
 
     internal void ReloadIfChangedExternally()
     {
         T settings;
-        lock (_gate)
+        lock (this._gate)
         {
             string? text;
             try
             {
-                text = File.Exists(FilePath) ? File.ReadAllText(FilePath) : null;
+                text = File.Exists(this.FilePath) ? File.ReadAllText(this.FilePath) : null;
             }
             catch (IOException)
             {
                 return; // Still being written; another event will follow.
             }
 
-            if (text is null || text == _lastWritten)
+            if (text is null || text == this._lastWritten)
+            {
                 return;
-            settings = _current = Parse(text);
+            }
+
+            settings = this._current = Parse(text);
         }
         OnChanged(settings, SettingsChangeSource.Load);
     }
@@ -222,9 +282,12 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
         string text;
         try
         {
-            if (!File.Exists(FilePath))
+            if (!File.Exists(this.FilePath))
+            {
                 return Prepare(CreateDefault());
-            text = File.ReadAllText(FilePath);
+            }
+
+            text = File.ReadAllText(this.FilePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -236,16 +299,25 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     private T Parse(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
+        {
             return Prepare(CreateDefault());
+        }
+
         try
         {
-            var settings = JsonSerializer.Deserialize<T>(text, _options) ?? CreateDefault();
-            _lastWritten = text;
+            T settings = JsonSerializer.Deserialize<T>(text, this._serializationOptions) ?? CreateDefault();
+            this._lastWritten = text;
             return Prepare(settings);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            SetAside();
+            bool isSetAside = false;
+            if (this.OverrideCorruptFile)
+            {
+                isSetAside = SetAside();
+            }
+
+            OnCorruptFileDetected(this.FilePath, ex, isSetAside);
             return Prepare(CreateDefault());
         }
     }
@@ -258,20 +330,22 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
 
     private void Write(T settings)
     {
-        var text = JsonSerializer.Serialize(settings, _options);
-        _lastWritten = text;
-        AtomicFile.WriteAllText(FilePath, text);
+        string text = JsonSerializer.Serialize(settings, this._serializationOptions);
+        this._lastWritten = text;
+        AtomicFile.WriteAllText(this.FilePath, text);
     }
 
-    private void SetAside()
+    private bool SetAside()
     {
         try
         {
-            File.Move(FilePath, FilePath + ".bad", overwrite: true);
+            File.Move(this.FilePath, this.FilePath + ".bad", overwrite: true);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Leave it; it'll be overwritten by the next save.
+            return false;
         }
     }
 }

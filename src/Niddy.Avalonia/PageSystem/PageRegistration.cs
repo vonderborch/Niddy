@@ -16,6 +16,7 @@ public sealed class PageRegistration
         bool? topLevel,
         PageIcon? icon,
         KeyGesture? shortcut,
+        string? sortKey,
         Func<Page> create
     )
     {
@@ -27,6 +28,7 @@ public sealed class PageRegistration
         TopLevel = topLevel;
         Icon = icon;
         Shortcut = shortcut;
+        SortKey = sortKey ?? DisplayName;
         _create = create;
     }
 
@@ -38,6 +40,12 @@ public sealed class PageRegistration
 
     /// <summary>A human-readable name, e.g. for a navigation menu. Defaults to the class name without a "Page" suffix.</summary>
     public string DisplayName { get; }
+
+    /// <summary>
+    ///     What the page sorts by in <see cref="PageRegistry.Alphabetical"/> order, e.g. in a <see cref="PageMenu"/>.
+    ///     Defaults to <see cref="DisplayName"/>.
+    /// </summary>
+    public string SortKey { get; }
 
     /// <summary>The page's icon, e.g. for a <see cref="PageMenu"/>, or null if it has none. See <see cref="PageIconAttribute"/>.</summary>
     public PageIcon? Icon { get; }
@@ -59,8 +67,8 @@ public sealed class PageRegistration
     public IReadOnlyList<PageId> Parents => PageRegistry.GetParents(this);
 
     /// <summary>
-    ///     This page's child pages: those it names as children, in that order, then those that name it as a parent,
-    ///     in registration order. Only registered pages are included. Changes as pages are registered.
+    ///     This page's child pages, in <see cref="PageRegistry.Sort"/> order. Only registered pages are included.
+    ///     Changes as pages are registered. See <see cref="PageRegistry.GetPages"/>.
     /// </summary>
     public IReadOnlyList<PageRegistration> Children => PageRegistry.GetPages(PageId);
 
@@ -82,6 +90,7 @@ public sealed class PageRegistration
     /// <summary>Whether registering the page again with these settings is harmless, e.g. explicitly and by the generator.</summary>
     internal bool HasSameSettings(PageRegistration other) =>
         DisplayName == other.DisplayName
+        && SortKey == other.SortKey
         && KeepAlive == other.KeepAlive
         && TopLevel == other.TopLevel
         && Equals(Icon, other.Icon)
@@ -94,10 +103,13 @@ public sealed class PageRegistration
 
     private static string DefaultDisplayName(Type pageType)
     {
-        var name = pageType.Name;
-        var tick = name.IndexOf('`');
+        string name = pageType.Name;
+        int tick = name.IndexOf('`');
         if (tick >= 0)
+        {
             name = name[..tick];
+        }
+
         return name.Length > "Page".Length && name.EndsWith("Page", StringComparison.Ordinal) ? name[..^"Page".Length] : name;
     }
 }

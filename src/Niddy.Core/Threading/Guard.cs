@@ -1,11 +1,11 @@
 using System.Diagnostics;
 
-namespace Niddy.Threading;
+namespace Niddy.Core.Threading;
 
 /// <summary>
 /// A thread-safe boolean flag. Backed by an int and manipulated via <see cref="Interlocked"/>.
 /// </summary>
-[DebuggerDisplay("State = {Check}")]
+[DebuggerDisplay("State = {IsClaimed}")]
 public struct Guard : IEquatable<Guard>
 {
     private const int False = 0;
@@ -13,34 +13,49 @@ public struct Guard : IEquatable<Guard>
 
     private int _state = False;
 
+    /// <summary>Creates an unset guard.</summary>
     public Guard() { }
 
     /// <summary>
     /// Returns true if the guard is set. Does not modify state.
     /// </summary>
-    public bool Check => _state == True;
+    public bool IsClaimed => this._state == True;
 
     /// <summary>
     /// Returns true and atomically sets the guard if it was previously unset. Returns false if already set.
     /// </summary>
-    public bool CheckSet => Interlocked.Exchange(ref _state, True) == False;
+    public bool TryClaim => Interlocked.Exchange(ref this._state, True) == False;
 
     /// <summary>
-    /// Sets the guard to true.
+    /// Claims the guard. Avoid using this method if possible. It is better to use <see cref="TryClaim"/>.
+    /// This method is unconditional and cannot tell if the guard was previously claimed, or which thread claimed it.
+    /// This is useful for overriding the default behavior of <see cref="IsClaimed"/> in controlled situations.
     /// </summary>
-    public void MarkChecked() => Interlocked.Exchange(ref _state, True);
+    public void Claim() => Interlocked.Exchange(ref this._state, True);
 
     /// <summary>
-    /// Resets the guard to false.
+    /// Releases the guard.
     /// </summary>
-    public void Reset() => Interlocked.Exchange(ref _state, False);
+    public void Release() => Interlocked.Exchange(ref this._state, False);
 
-    public bool Equals(Guard other) => _state == other._state;
+    /// <summary>Whether both guards are in the same state.</summary>
+    public bool Equals(Guard other) => this._state == other._state;
+
+    /// <inheritdoc />
     public override bool Equals(object? obj) => obj is Guard other && Equals(other);
-    public override int GetHashCode() => _state;
 
-    public static bool operator ==(Guard left, bool right) => left.Check == right;
-    public static bool operator ==(bool left, Guard right) => left == right.Check;
-    public static bool operator !=(Guard left, bool right) => left.Check != right;
-    public static bool operator !=(bool left, Guard right) => left != right.Check;
+    /// <inheritdoc />
+    public override int GetHashCode() => this._state;
+
+    /// <summary>Whether the guard's <see cref="IsClaimed"/> equals <paramref name="right"/>.</summary>
+    public static bool operator ==(Guard left, bool right) => left.IsClaimed == right;
+
+    /// <summary>Whether the guard's <see cref="IsClaimed"/> equals <paramref name="left"/>.</summary>
+    public static bool operator ==(bool left, Guard right) => left == right.IsClaimed;
+
+    /// <summary>Whether the guard's <see cref="IsClaimed"/> differs from <paramref name="right"/>.</summary>
+    public static bool operator !=(Guard left, bool right) => left.IsClaimed != right;
+
+    /// <summary>Whether the guard's <see cref="IsClaimed"/> differs from <paramref name="left"/>.</summary>
+    public static bool operator !=(bool left, Guard right) => left != right.IsClaimed;
 }

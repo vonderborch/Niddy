@@ -1,4 +1,4 @@
-namespace Niddy.Results;
+namespace Niddy.Core.Results;
 
 /// <summary>Why an operation failed: a message, an optional machine-readable code, and the exception behind it if any.</summary>
 /// <param name="Message">A human-readable description of the failure.</param>
@@ -18,6 +18,9 @@ public sealed record Error(string Message, string? Code = null, Exception? Excep
 
     /// <summary>Creates an error from a message.</summary>
     public static implicit operator Error(string message) => new(message);
+    
+    /// <summary>Creates an error from an exception.</summary>
+    public static implicit operator Error(Exception exception) => FromException(exception);
 
     /// <inheritdoc />
     public override string ToString() => Code is null ? Message : $"{Code}: {Message}";

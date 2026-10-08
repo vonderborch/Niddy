@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
-using Niddy.Avalonia.Utilities;
+using Niddy.Avalonia.Layout;
+using Niddy.Avalonia.PageSystem;
 
 namespace Niddy.Avalonia.Dialogs;
 
@@ -22,6 +23,7 @@ public partial class DialogOverlayHost : UserControl
     private readonly List<OpenDialog> _openDialogs = new();
     private IDisposable? _backRegistration;
 
+    /// <summary>Creates an overlay host with no content.</summary>
     public DialogOverlayHost()
     {
         InitializeComponent();
@@ -40,7 +42,7 @@ public partial class DialogOverlayHost : UserControl
 
     internal async Task ShowAsync(Control content, IDialog dialog, double maxWidth)
     {
-        var entry = new OpenDialog(content, dialog, maxWidth);
+        OpenDialog entry = new(content, dialog, maxWidth);
         _openDialogs.Add(entry);
         ShowTopDialog();
         try
@@ -63,19 +65,23 @@ public partial class DialogOverlayHost : UserControl
             return;
         }
 
-        var top = _openDialogs[^1];
+        OpenDialog top = _openDialogs[^1];
         DialogCard.MaxWidth = top.MaxWidth;
         DialogPresenter.Content = top.Content;
         OverlayPanel.IsVisible = true;
     }
 
+    /// <inheritdoc />
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         if (TopLevel.GetTopLevel(this) is { } topLevel)
+        {
             _backRegistration = BackNavigation.Register(topLevel, BackNavigation.DialogPriority, OnBackRequested);
+        }
     }
 
+    /// <inheritdoc />
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -86,7 +92,9 @@ public partial class DialogOverlayHost : UserControl
     private bool OnBackRequested()
     {
         if (_openDialogs.Count == 0)
+        {
             return false;
+        }
 
         // Always consume the request while a dialog is open so the page underneath doesn't navigate.
         _openDialogs[^1].Dialog.TryDismiss();
@@ -99,11 +107,14 @@ public partial class DialogOverlayHost : UserControl
     /// </summary>
     public static DialogOverlayHost? FindInVisualTree(Control control)
     {
-        var current = control.Parent;
+        StyledElement? current = control.Parent;
         while (current is not null)
         {
             if (current is DialogOverlayHost host)
+            {
                 return host;
+            }
+
             current = current.Parent;
         }
         return null;

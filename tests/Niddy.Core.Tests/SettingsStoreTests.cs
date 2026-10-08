@@ -1,7 +1,9 @@
-using Niddy.Settings;
+using Niddy.Core.Settings;
 
 namespace Niddy.Core.Tests;
 
+// Watch creates a DebouncedFileWatcher, which reads Platform.Info; PlatformTests briefly make that throw.
+[Collection(PlatformStateCollection.Name)]
 public sealed class SettingsStoreTests : IDisposable
 {
     private readonly string _dir = Directory.CreateTempSubdirectory("niddy-settings-").FullName;
@@ -27,7 +29,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Current_WithoutAFile_UsesDefaults()
     {
-        var store = new TestStore(FilePath);
+        TestStore store = new(FilePath);
 
         Assert.Equal(7, store.Current.Volume);
         Assert.Equal(2, store.Current.Version);
@@ -37,7 +39,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Update_SavesAndRaisesChanged()
     {
-        var store = new TestStore(FilePath);
+        TestStore store = new(FilePath);
         SettingsChangedEventArgs<TestSettings>? raised = null;
         store.Changed += (_, e) => raised = e;
 
@@ -51,7 +53,7 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public void Reset_RestoresDefaults()
     {
-        var store = new TestStore(FilePath);
+        TestStore store = new(FilePath);
         store.Update(s => s.Volume = 1);
 
         store.Reset();
@@ -64,18 +66,42 @@ public sealed class SettingsStoreTests : IDisposable
     public void CorruptFile_IsSetAsideAndDefaultsUsed()
     {
         File.WriteAllText(FilePath, "{ not json");
-        var store = new TestStore(FilePath);
+        TestStore store = new(FilePath);
+        SettingsCorruptFileEventArgs? corruptArgs = null;
+        store.CorruptFileDetected += (_, e) => corruptArgs = e;
 
         Assert.Equal(7, store.Current.Volume);
         Assert.True(File.Exists(FilePath + ".bad"));
         Assert.False(File.Exists(FilePath));
+        Assert.NotNull(corruptArgs);
+        Assert.Equal(Path.GetFullPath(FilePath), corruptArgs.FilePath);
+        Assert.True(corruptArgs.IsSetAside);
+        Assert.NotNull(corruptArgs.Exception);
+    }
+
+    [Fact]
+    public void CorruptFile_WhenOverrideDisabled_KeepsFileAndRaisesEvent()
+    {
+        File.WriteAllText(FilePath, "{ not json");
+        TestStore store = new(FilePath) { OverrideCorruptFile = false };
+        SettingsCorruptFileEventArgs? corruptArgs = null;
+        store.CorruptFileDetected += (_, e) => corruptArgs = e;
+
+        Assert.Equal(7, store.Current.Volume);
+        Assert.False(File.Exists(FilePath + ".bad"));
+        Assert.True(File.Exists(FilePath));
+        Assert.Equal("{ not json", File.ReadAllText(FilePath));
+        Assert.NotNull(corruptArgs);
+        Assert.Equal(Path.GetFullPath(FilePath), corruptArgs.FilePath);
+        Assert.False(corruptArgs.IsSetAside);
+        Assert.NotNull(corruptArgs.Exception);
     }
 
     [Fact]
     public void ReloadIfChangedExternally_IgnoresOwnWritesAndPicksUpOthers()
     {
-        var store = new TestStore(FilePath);
-        var loads = 0;
+        TestStore store = new(FilePath);
+        int loads = 0;
         store.Changed += (_, e) => loads += e.Source == SettingsChangeSource.Load ? 1 : 0;
         store.Update(s => s.Volume = 3);
 
@@ -93,13 +119,15 @@ public sealed class SettingsStoreTests : IDisposable
     [Fact]
     public async Task Watch_ReloadsWhenTheFileChanges()
     {
-        using var store = new TestStore(FilePath);
+        using TestStore store = new(FilePath);
         store.Update(s => s.Volume = 3);
-        var reloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource reloaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         store.Changed += (_, e) =>
         {
             if (e.Source == SettingsChangeSource.Load)
+            {
                 reloaded.TrySetResult();
+            }
         };
         store.Watch(TimeSpan.FromMilliseconds(100));
 

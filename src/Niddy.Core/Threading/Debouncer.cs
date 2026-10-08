@@ -1,6 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 
-namespace Niddy.Threading;
+namespace Niddy.Core.Threading;
 
 /// <summary>
 /// Runs an action once calls stop arriving for <see cref="Delay" />: each <see cref="Invoke(Action)" /> restarts the
@@ -44,9 +45,9 @@ public sealed class Debouncer : IDisposable
     {
         get
         {
-            lock (_gate)
+            lock (this._gate)
             {
-                return _pending != null;
+                return this._pending != null;
             }
         }
     }
@@ -56,16 +57,16 @@ public sealed class Debouncer : IDisposable
 
     /// <summary>Creates a debouncer.</summary>
     /// <param name="delay">How long calls must stop arriving before the action runs.</param>
-    /// <param name="timeProvider">The clock to use; defaults to <see cref="System" />.</param>
+    /// <param name="timeProvider">The clock to use; defaults to <see cref="TimeProvider.System" />.</param>
     /// <param name="captureContext">
     /// Whether to run actions on the current <see cref="SynchronizationContext" />. When false, they run on the thread pool.
     /// </param>
     public Debouncer(TimeSpan delay, TimeProvider? timeProvider = null, bool captureContext = true)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero);
-        Delay = delay;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _context = (captureContext ? SynchronizationContext.Current : null);
+        this.Delay = delay;
+        this._timeProvider = timeProvider ?? TimeProvider.System;
+        this._context = captureContext ? SynchronizationContext.Current : null;
     }
 
     /// <summary>Schedules <paramref name="action" /> to run after <see cref="Delay" />, replacing any pending action.</summary>
@@ -92,10 +93,10 @@ public sealed class Debouncer : IDisposable
     /// <summary>Drops the pending action, and cancels the token of one that is running.</summary>
     public void Cancel()
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            _pending = null;
-            _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            this._pending = null;
+            this._timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             CancelRunning();
         }
     }
@@ -103,98 +104,101 @@ public sealed class Debouncer : IDisposable
     /// <summary>Runs the pending action now, on the calling thread, if there is one. Useful before closing.</summary>
     public void Flush()
     {
-        Func<CancellationToken, Task> func;
-        CancellationTokenSource cts;
-        lock (_gate)
+        Func<CancellationToken, Task>? action;
+        CancellationTokenSource? cts;
+        lock (this._gate)
         {
-            func = Take(out cts);
-            _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            this._timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            if (!TryTake(out action, out cts))
+            {
+                return;
+            }
         }
-        if (func != null)
-        {
-            RunAsync(func, cts);
-        }
+        _ = RunAsync(action, cts);
     }
 
     /// <summary>Drops the pending action and stops the timer. A running action's token is cancelled.</summary>
     public void Dispose()
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            if (!_disposed)
+            if (this._disposed)
             {
-                _disposed = true;
-                _pending = null;
-                CancelRunning();
-                _timer?.Dispose();
-                _timer = null;
+                return;
             }
+
+            this._disposed = true;
+            this._pending = null;
+            CancelRunning();
+            this._timer?.Dispose();
+            this._timer = null;
         }
     }
 
     private void Schedule(Func<CancellationToken, Task> action)
     {
-        lock (_gate)
+        lock (this._gate)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            _pending = action;
+            ObjectDisposedException.ThrowIf(this._disposed, this);
+            this._pending = action;
             CancelRunning();
-            if (_timer == null)
+            if (this._timer == null)
             {
-                _timer = _timeProvider.CreateTimer(state =>
-                {
-                    ((Debouncer)state).OnTimer();
-                }, this, Delay, Timeout.InfiniteTimeSpan);
+                this._timer = this._timeProvider.CreateTimer(static state => ((Debouncer)state!).OnTimer(), this, this.Delay, Timeout.InfiniteTimeSpan);
             }
             else
             {
-                _timer.Change(Delay, Timeout.InfiniteTimeSpan);
+                this._timer.Change(this.Delay, Timeout.InfiniteTimeSpan);
             }
         }
     }
 
     private void OnTimer()
     {
-        Func<CancellationToken, Task> func;
-        CancellationTokenSource cts;
-        lock (_gate)
+        Func<CancellationToken, Task>? action;
+        CancellationTokenSource? cts;
+        lock (this._gate)
         {
-            func = Take(out cts);
+            if (!TryTake(out action, out cts))
+            {
+                return;
+            }
         }
-        if (func == null)
+        if (this._context == null)
         {
+            _ = RunAsync(action, cts);
             return;
         }
-        if (_context == null)
+        this._context.Post(static state =>
         {
-            RunAsync(func, cts);
-            return;
-        }
-        _context.Post(state =>
-        {
-            var (debouncer, action, cts2) = ((Debouncer, Func<CancellationToken, Task>, CancellationTokenSource))state;
-            debouncer.RunAsync(action, cts2);
-        }, (this, func, cts));
+            (Debouncer debouncer, Func<CancellationToken, Task> action, CancellationTokenSource cts) = ((Debouncer, Func<CancellationToken, Task>, CancellationTokenSource))state!;
+            _ = debouncer.RunAsync(action, cts);
+        }, (this, action, cts));
     }
 
-    private Func<CancellationToken, Task>? Take(out CancellationTokenSource? cts)
+    /// <summary>Takes the pending action, if any, and starts a new token for it. Call under the lock.</summary>
+    private bool TryTake(
+        [NotNullWhen(true)] out Func<CancellationToken, Task>? action,
+        [NotNullWhen(true)] out CancellationTokenSource? cts
+    )
     {
-        Func<CancellationToken, Task> pending = _pending;
-        _pending = null;
+        action = this._pending;
+        this._pending = null;
         cts = null;
-        if (pending == null)
+        if (action == null)
         {
-            return null;
+            return false;
         }
+
         CancelRunning();
-        _running = (cts = new CancellationTokenSource());
-        return pending;
+        this._running = cts = new CancellationTokenSource();
+        return true;
     }
 
     private void CancelRunning()
     {
-        _running?.Cancel();
-        _running = null;
+        this._running?.Cancel();
+        this._running = null;
     }
 
     private async Task RunAsync(Func<CancellationToken, Task> action, CancellationTokenSource cts)
@@ -206,10 +210,9 @@ public sealed class Debouncer : IDisposable
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
         }
-        catch (Exception ex2)
+        catch (Exception ex)
         {
-            Exception ex3 = ex2;
-            ActionFailed.Report(this, Error, ex3);
+            ActionFailed.Report(this, this.Error, ex);
         }
     }
 }
@@ -224,21 +227,14 @@ internal static class ActionFailed
             handler(sender, exception);
             return;
         }
-        ExceptionDispatchInfo state = ExceptionDispatchInfo.Capture(exception);
-        SynchronizationContext current = SynchronizationContext.Current;
-        if (current != null)
+        ExceptionDispatchInfo info = ExceptionDispatchInfo.Capture(exception);
+        if (SynchronizationContext.Current is { } context)
         {
-            current.Post(obj =>
-            {
-                ((ExceptionDispatchInfo)obj).Throw();
-            }, state);
+            context.Post(static state => ((ExceptionDispatchInfo)state!).Throw(), info);
         }
         else
         {
-            ThreadPool.QueueUserWorkItem(exceptionDispatchInfo =>
-            {
-                exceptionDispatchInfo.Throw();
-            }, state, preferLocal: false);
+            ThreadPool.QueueUserWorkItem(static state => state.Throw(), info, preferLocal: false);
         }
     }
 }

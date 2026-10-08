@@ -10,6 +10,7 @@ namespace Niddy.Avalonia.Theme;
 public static class ThemeManager
 {
     private static readonly List<IObserver<AppTheme>> Observers = new();
+    private static readonly Lock ObserversGate = new();
     private static Application? _trackedApplication;
     private static EventHandler<AppTheme>? _themeChanged;
 
@@ -52,12 +53,16 @@ public static class ThemeManager
     // Application exists doesn't permanently miss theme changes.
     private static void EnsureTracking()
     {
-        var application = Application.Current;
+        Application? application = Application.Current;
         if (application is null || ReferenceEquals(application, _trackedApplication))
+        {
             return;
+        }
 
         if (_trackedApplication is not null)
+        {
             _trackedApplication.ActualThemeVariantChanged -= OnActualThemeVariantChanged;
+        }
 
         _trackedApplication = application;
         application.ActualThemeVariantChanged += OnActualThemeVariantChanged;
@@ -65,14 +70,19 @@ public static class ThemeManager
 
     private static void OnActualThemeVariantChanged(object? sender, EventArgs e)
     {
-        var theme = Resolve();
+        AppTheme theme = Resolve();
         _themeChanged?.Invoke(null, theme);
 
         IObserver<AppTheme>[] observers;
-        lock (Observers)
+        lock (ObserversGate)
+        {
             observers = Observers.ToArray();
-        foreach (var observer in observers)
+        }
+
+        foreach (IObserver<AppTheme> observer in observers)
+        {
             observer.OnNext(theme);
+        }
     }
 
     private static AppTheme Resolve() =>
@@ -86,8 +96,11 @@ public static class ThemeManager
 
         public IDisposable Subscribe(IObserver<AppTheme> observer)
         {
-            lock (Observers)
+            lock (ObserversGate)
+            {
                 Observers.Add(observer);
+            }
+
             return new Subscription(observer);
         }
     }
@@ -98,11 +111,16 @@ public static class ThemeManager
 
         public void Dispose()
         {
-            var observer = Interlocked.Exchange(ref _observer, null);
+            IObserver<AppTheme>? observer = Interlocked.Exchange(ref _observer, null);
             if (observer is null)
+            {
                 return;
-            lock (Observers)
+            }
+
+            lock (ObserversGate)
+            {
                 Observers.Remove(observer);
+            }
         }
     }
 }

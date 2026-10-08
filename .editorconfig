@@ -1,0 +1,16 @@
+root = true
+
+[*.cs]
+# Explicit types instead of var (var only where it's required, e.g. anonymous types)
+csharp_style_var_for_built_in_types = false:warning
+csharp_style_var_when_type_is_apparent = false:warning
+csharp_style_var_elsewhere = false:warning
+dotnet_diagnostic.IDE0008.severity = warning
+
+# Target-typed new when the type is on the left: MyClass instance = new();
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+dotnet_diagnostic.IDE0090.severity = warning
+
+# Always require curly brackets for code blocks (if, else, while, for, foreach, do, etc.)
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning

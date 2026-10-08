@@ -50,9 +50,9 @@ public class App : NiddyApp
         options.Layout = pages => new PageMenu { Content = pages, Mode = PageMenuMode.Tree };
 
         // NiddyApp.Paths isn't available until Configure returns, so build the paths here
-        var pluginFolder = Path.Combine(AppPaths.For("MyApp").Data, "plugins");
+        string pluginFolder = Path.Combine(AppPaths.For("MyApp").Data, "plugins");
         if (Directory.Exists(pluginFolder))
-            foreach (var dll in Directory.GetFiles(pluginFolder, "*.Plugin.*.dll"))
+            foreach (string dll in Directory.GetFiles(pluginFolder, "*.Plugin.*.dll"))
                 Assembly.LoadFrom(dll);   // pages register as the assembly loads
     }
 }

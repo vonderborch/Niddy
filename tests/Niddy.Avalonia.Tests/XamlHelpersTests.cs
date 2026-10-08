@@ -10,13 +10,13 @@ public class XamlHelpersTests
     [AvaloniaFact]
     public void TheNiddyXmlnsResolvesEveryHelper()
     {
-        var culture = CultureInfo.CurrentCulture;
+        CultureInfo culture = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-        var previous = UiStateStore.Default;
+        UiStateStore? previous = UiStateStore.Default;
         UiStateStore.Default = null;
         try
         {
-            var window = new XamlHelpersWindow { DataContext = new XamlHelpersModel() };
+            XamlHelpersWindow window = new() { DataContext = new XamlHelpersModel() };
             window.Show();
             global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 

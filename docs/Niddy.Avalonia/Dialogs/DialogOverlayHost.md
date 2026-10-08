@@ -42,4 +42,4 @@ bool canOverlay = DialogOverlayHost.FindInVisualTree(this) is not null;
 
 ## See also
 
-- [Dialog](Dialog.md), [ToastHost](../Toast/ToastHost.md), [examples/mobile-and-browser](../../examples/mobile-and-browser.md)
+- [Dialog](Dialog.md), [ToastHost](../Toasts/ToastHost.md), [examples/mobile-and-browser](../../examples/mobile-and-browser.md)

@@ -1,9 +1,15 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Niddy.IO;
+using Niddy.Core.IO;
+using Niddy.Core.Logging.Batching;
+using Niddy.Core.Logging.Files;
 
-namespace Niddy.Logging;
+namespace Niddy.Core.Logging;
 
-/// <summary>Sets up logging to files with <see cref="FileLoggerProvider"/>.</summary>
+/// <summary>
+/// Sets up <c>Microsoft.Extensions.Logging</c>: file logging with <see cref="FileLoggerProvider"/>, any other providers,
+/// and ready-made logger factories.
+/// </summary>
 public static class NiddyLogging
 {
     /// <summary>Adds logging to daily, size-capped files in <paramref name="directory"/>.</summary>
@@ -14,9 +20,42 @@ public static class NiddyLogging
     public static ILoggingBuilder AddFile(this ILoggingBuilder builder, string directory, Action<FileLoggerOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = new FileLoggerOptions { Directory = directory };
+        FileLoggerOptions options = new() { Directory = directory };
         configure?.Invoke(options);
-        return builder.AddProvider(new FileLoggerProvider(options));
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Directory, nameof(directory));
+        return builder.AddOwnedProvider(_ => new FileLoggerProvider(options));
+    }
+
+    /// <summary>
+    /// Adds a provider that the logger factory (or DI container) creates and disposes. Use it instead of
+    /// <c>AddProvider(new MyProvider())</c>: a provider instance passed to <c>AddProvider</c> is never disposed, so a
+    /// queueing provider such as a <see cref="BatchingLoggerProvider{TOptions}"/> loses what's still queued at exit.
+    /// </summary>
+    /// <param name="builder">The logging builder.</param>
+    /// <param name="factory">Creates the provider, once, from the service provider.</param>
+    /// <returns>The builder, for chaining.</returns>
+    public static ILoggingBuilder AddOwnedProvider(this ILoggingBuilder builder, Func<IServiceProvider, ILoggerProvider> factory)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(factory);
+        builder.Services.AddSingleton(factory);
+        return builder;
+    }
+
+    /// <summary>
+    /// Creates a logger factory with only the providers <paramref name="configure"/> adds (no files). Dispose it on
+    /// exit so queued entries are written.
+    /// </summary>
+    /// <param name="configure">Adds providers or filters, e.g. <c>b =&gt; b.AddConsole().AddOwnedProvider(_ =&gt; new DbLoggerProvider(...))</c>.</param>
+    /// <param name="minimumLevel">The least severe level logged.</param>
+    public static ILoggerFactory CreateFactory(Action<ILoggingBuilder> configure, LogLevel minimumLevel = LogLevel.Information)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        return LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(minimumLevel);
+            configure(builder);
+        });
     }
 
     /// <summary>

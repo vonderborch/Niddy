@@ -34,7 +34,9 @@ namespace Niddy.Generated
 }
 ```
 
-`[PageIcon]` attributes become the `icon:` argument, and `Shortcut` is checked the way `PageShortcut.Parse` checks it at runtime.
+`[PageIcon]` attributes become the `icon:` argument, and `Shortcut` is checked the way `PageShortcut.Parse` checks it at runtime. `shortcut:` and `sortKey:` are only passed when the attribute sets them.
+
+Pages are registered in file path order, then in order within a file. That is the declared order of top-level pages, but menus sort alphabetically by default; see [Ordering](../Niddy.Avalonia/PageSystem/PageRegistry.md#ordering).
 
 ## Requirements for a registered page
 

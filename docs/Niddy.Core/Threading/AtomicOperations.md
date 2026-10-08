@@ -1,6 +1,6 @@
 # AtomicOperations
 
-`Niddy.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/AtomicOperations.cs)
+`Niddy.Core.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/AtomicOperations.cs)
 
 Small lock-free helpers over `Interlocked`.
 
@@ -16,7 +16,7 @@ Small lock-free helpers over `Interlocked`.
 ## Examples
 
 ```csharp
-using Niddy.Threading;
+using Niddy.Core.Threading;
 
 private int _activeDownloads;
 

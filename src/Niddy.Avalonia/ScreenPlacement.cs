@@ -1,4 +1,6 @@
 using Avalonia.Layout;
+using Niddy.Avalonia.PageSystem;
+using Niddy.Avalonia.Toasts;
 
 namespace Niddy.Avalonia;
 

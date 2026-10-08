@@ -34,7 +34,7 @@ public sealed class ProjectsPageDataContext(IProjectService service) : DataConte
     public Task LoadAsync() => RunAsync(async () =>
     {
         Projects.Clear();
-        foreach (var project in await service.GetProjectsAsync(Filter))
+        foreach (Project project in await service.GetProjectsAsync(Filter))
             Projects.Add(project);
     });
 

@@ -6,8 +6,10 @@
         <Nullable>enable</Nullable>
         <IsPackable>true</IsPackable>
         <PackageId>Niddy.Core</PackageId>
-        <Description>Niddy: my personal .NET utilities. Core helpers (IO, atomic file writes, debounced file watching, app paths, streams, strings, JSON, humanized formatting, retry with backoff), Result and Option types, debounce/throttle and lock-free threading primitives, a rolling file logger, typed JSON settings stores, and platform-native secure storage (macOS Keychain, Windows Credential Manager, Linux Secret Service, with an encrypted-file fallback).</Description>
-        <PackageTags>$(PackageTags);helpers;extensions;retry;threading;result;option;debounce;logging;settings;security;keychain;credentials;secure-storage</PackageTags>
+        <Description>Niddy: my personal .NET utilities. File-system extensions (retrying deletes, backups, copies, path matching), zip/tar archives, atomic file writes, debounced file watching, app paths, stream and string extensions, JSON files, humanized formatting, retry with backoff, Result and Option types, debounce/throttle and lock-free threading primitives, a rolling file logger, typed JSON settings stores, and platform-native secure storage (macOS Keychain, Windows Credential Manager, Linux Secret Service, with an encrypted-file fallback).</Description>
+        <PackageTags>$(PackageTags);helpers;extensions;retry;threading;result;option;debounce;logging;settings;security;keychain;credentials;secure-storage;zip;tar;archive</PackageTags>
+        <!-- UrlLauncher: [JSImport] code and a function pointer for dispatch_async_f. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <GeneratePackageOnBuild Condition="'$(Configuration)' != 'Release'">true</GeneratePackageOnBuild>
     </PropertyGroup>
 

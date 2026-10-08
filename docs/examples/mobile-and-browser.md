@@ -1,6 +1,6 @@
 # Mobile and browser
 
-One `NiddyApp` runs on desktop, Android, iOS and the browser. This page covers what changes between them and how to write pages that work everywhere. It uses [NiddyApp / AppMode](../Niddy.Avalonia/Hosting/NiddyApp.md#appmode), [AppShell](../Niddy.Avalonia/Hosting/AppShell.md), [PageMenu](../Niddy.Avalonia/PageSystem/PageMenu.md), [PageView](../Niddy.Avalonia/PageSystem/PageView.md), [Dialog](../Niddy.Avalonia/Dialogs/Dialog.md), [ToastHost](../Niddy.Avalonia/Toast/ToastHost.md), [FilePicker](../Niddy.Avalonia/FilePicker/FilePicker.md), [Responsive](../Niddy.Avalonia/Layout/Responsive.md) and [UriLauncher](../Niddy.Avalonia/Utilities/UriLauncher.md).
+One `NiddyApp` runs on desktop, Android, iOS and the browser. This page covers what changes between them and how to write pages that work everywhere. It uses [NiddyApp / AppMode](../Niddy.Avalonia/Hosting/NiddyApp.md#appmode), [AppShell](../Niddy.Avalonia/Hosting/AppShell.md), [PageMenu](../Niddy.Avalonia/PageSystem/PageMenu.md), [PageView](../Niddy.Avalonia/PageSystem/PageView.md), [Dialog](../Niddy.Avalonia/Dialogs/Dialog.md), [ToastHost](../Niddy.Avalonia/Toasts/ToastHost.md), [FilePicker](../Niddy.Avalonia/FilePicker.md), [Responsive](../Niddy.Avalonia/Layout/Responsive.md) and [UriLauncher](../Niddy.Avalonia/UriLauncher.md).
 
 ## What Niddy does for you
 
@@ -33,9 +33,9 @@ protected override void Configure(NiddyAppOptions options)
 **Files: use handles, not paths.** On mobile and in the browser, picked files usually have no local path, so the `*Path` methods return null there.
 
 ```csharp
-using var file = await FilePicker.OpenFile(this, "Open", [FilePickerFileTypes.ImageAll]);
+using IStorageFile? file = await FilePicker.OpenFile(this, "Open", [FilePickerFileTypes.ImageAll]);
 if (file is null) return;
-await using var stream = await file.OpenReadAsync();
+await using Stream stream = await file.OpenReadAsync();
 Photo = new Bitmap(stream);
 ```
 
@@ -86,7 +86,7 @@ private void Items_OnSelectionChanged(object? sender, SelectionChangedEventArgs 
 | `WindowNotification.RequestAttention` | Does nothing. |
 | `DialogDisplayMode.Window` | Falls back to an overlay (there's nothing to own a window). |
 | `Dialog.Web` | Shows a message where the platform has no web view. |
-| `SecureStorageFactory.Create` | Falls back to [`EncryptedFileSecureStorage`](../Niddy.Core/Security/EncryptedFileSecureStorage.md) on iOS, Android and the browser. |
+| `SecureStorageFactory.Create` | Uses the Keychain on iOS, iPadOS and Mac Catalyst (the app must be signed). Falls back to [`EncryptedFileSecureStorage`](../Niddy.Core/Security/EncryptedFileSecureStorage.md) on Android, which is weak protection; [register a provider](../Niddy.Core/Security/SecureStorageFactory.md#custom-providers) for the Android Keystore. **Throws `PlatformNotSupportedException` in the browser**: keep secrets on a server, or register a provider. |
 
 ## See also
 

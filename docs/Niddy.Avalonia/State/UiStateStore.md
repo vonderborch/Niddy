@@ -6,6 +6,8 @@ Saves UI state that users expect to be remembered, such as window placements ([`
 
 [`NiddyApp`](../Hosting/NiddyApp.md) sets `Default` to `ui-state.json` in the app's data folder when `NiddyAppOptions.RememberWindowState` is on (the default) and `Default` is still null. Without `NiddyApp`, set `Default` yourself. While `Default` is null, nothing is remembered.
 
+A save that fails in the background (a read-only folder, a full disk) is logged as a warning to `NiddyAppOptions.LoggerFactory` (or `Trace` without one) rather than thrown; losing a window size shouldn't crash the app. `Flush()` and `Save()` still throw.
+
 ## API
 
 | Member | Description |
@@ -17,6 +19,7 @@ Saves UI state that users expect to be remembered, such as window placements ([`
 | `IReadOnlyList<string>? GetLayout(string key)` / `void SetLayout(string key, IReadOnlyList<string> sizes)` | |
 | `void Flush()` | Saves pending changes now. Windows flush when they close. |
 | `bool HasPendingChanges` | |
+| `Dispose()` | Saves pending changes, then stops saving. |
 | Inherited | `Current`, `Load`, `Save`, `Reset`, `Changed`, `Watch`… See [SettingsStore](../../Niddy.Core/Settings/SettingsStore.md). |
 
 ### `UiState`

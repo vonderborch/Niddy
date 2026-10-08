@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Niddy.Avalonia.Dialogs.BuiltIn;
 
 namespace Niddy.Avalonia.Dialogs;
 
@@ -71,9 +72,13 @@ public static class Dialog
     )
     {
         if (resolvedMode == DialogDisplayMode.Overlay)
+        {
             await DialogOverlayHost.FindInVisualTree(parent)!.ShowAsync(dialog, dialog, maxWidth);
+        }
         else
+        {
             await DialogWindow.ShowAsync((Window)TopLevel.GetTopLevel(parent)!, dialog, dialog, windowWidth ?? maxWidth, windowHeight);
+        }
 
         return await dialog.Result;
     }
@@ -81,11 +86,11 @@ public static class Dialog
     /// <summary>Resolves the requested mode to Overlay or Window, or throws if neither is possible.</summary>
     private static DialogDisplayMode ResolveMode(DialogDisplayMode? requested, Control parent)
     {
-        var mode = requested ?? DefaultMode;
-        var hasOverlayHost = DialogOverlayHost.FindInVisualTree(parent) is not null;
+        DialogDisplayMode mode = requested ?? DefaultMode;
+        bool hasOverlayHost = DialogOverlayHost.FindInVisualTree(parent) is not null;
 
         // Mobile and browser apps have a single view and no Window to own a dialog window.
-        var canOpenWindows = TopLevel.GetTopLevel(parent) is global::Avalonia.Controls.Window;
+        bool canOpenWindows = TopLevel.GetTopLevel(parent) is global::Avalonia.Controls.Window;
 
         return mode switch
         {
@@ -312,11 +317,11 @@ public static class Dialog
         )
         {
             // Resolve first so a missing host throws before any work starts.
-            var mode = ResolveMode(displayMode, parent);
-            var dialog = new ProgressDialog(title, description, isIndeterminate, showCancelButton, cancelButtonText);
+            DialogDisplayMode mode = ResolveMode(displayMode, parent);
+            ProgressDialog dialog = new(title, description, isIndeterminate, showCancelButton, cancelButtonText);
 
-            var finished = dialog.Start(work);
-            var result = await ShowAsync(parent, dialog, maxWidth, mode, windowWidth, windowHeight);
+            Task finished = dialog.Start(work);
+            bool result = await ShowAsync(parent, dialog, maxWidth, mode, windowWidth, windowHeight);
             dialog.Cancel();
             await finished;
             return result;
@@ -360,13 +365,13 @@ public static class Dialog
             double? windowHeight = null
         )
         {
-            var itemList = items.ToList();
-            var dialog = new SelectionDialog(
+            List<T> itemList = items.ToList();
+            SelectionDialog dialog = new(
                 title, description, itemList.Select(displaySelector).ToList(),
                 okButtonText, cancelButtonText, showCancelButton
             );
 
-            var selectedIndex = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
+            int selectedIndex = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
             return selectedIndex >= 0 && selectedIndex < itemList.Count ? itemList[selectedIndex] : default;
         }
     }
@@ -618,9 +623,9 @@ public static class Dialog
             double? windowHeight = null
         )
         {
-            var itemList = items.ToList();
-            var dialog = TableDialog.Create(title, description, itemList, columns, isPicker: true, okButtonText, cancelButtonText);
-            var index = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
+            List<T> itemList = items.ToList();
+            TableDialog dialog = TableDialog.Create(title, description, itemList, columns, isPicker: true, okButtonText, cancelButtonText);
+            int index = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
             return index >= 0 && index < itemList.Count ? itemList[index] : default;
         }
     }

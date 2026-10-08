@@ -1,4 +1,4 @@
-using Niddy.Helpers;
+using Niddy.Core.Collections;
 
 namespace Niddy.Core.Tests;
 
@@ -7,8 +7,8 @@ public class ListExtensionsTests
     [Fact]
     public void CombineLists_KeepsOrderAndLeavesInputsAlone()
     {
-        var first = new List<int> { 1, 2 };
-        var second = new List<int> { 3 };
+        List<int> first = new() { 1, 2 };
+        List<int> second = new() { 3 };
 
         Assert.Equal([1, 2, 3], first.CombineLists(second));
         Assert.Equal(2, first.Count);
@@ -25,7 +25,7 @@ public class ListExtensionsTests
     [Fact]
     public void IsContained_StringsHonourCaseSensitivity()
     {
-        var list = new List<string> { "Alpha", "Beta" };
+        List<string> list = new() { "Alpha", "Beta" };
 
         Assert.False(list.IsContained("alpha"));
         Assert.True(list.IsContained("alpha", caseSensitive: false));

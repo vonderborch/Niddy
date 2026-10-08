@@ -1,4 +1,4 @@
-using Niddy.Helpers;
+using Niddy.Core.Text;
 
 namespace Niddy.Core.Tests;
 

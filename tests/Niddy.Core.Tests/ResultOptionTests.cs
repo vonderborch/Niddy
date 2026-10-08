@@ -1,17 +1,17 @@
-using Niddy.Results;
+using Niddy.Core.Results;
 
 namespace Niddy.Core.Tests;
 
 public class ResultTests
 {
     private static Result<int> Parse(string text) =>
-        int.TryParse(text, out var value) ? value : new Error($"'{text}' is not a number", "parse");
+        int.TryParse(text, out int value) ? value : new Error($"'{text}' is not a number", "parse");
 
     [Fact]
     public void ImplicitConversions_CreateSuccessAndFailure()
     {
-        var ok = Parse("42");
-        var bad = Parse("x");
+        Result<int> ok = Parse("42");
+        Result<int> bad = Parse("x");
 
         Assert.True(ok.IsSuccess);
         Assert.Equal(42, ok.Value);
@@ -33,10 +33,10 @@ public class ResultTests
     [Fact]
     public void MapBindEnsure_ChainAndShortCircuit()
     {
-        var doubled = Parse("21").Map(x => x * 2).Ensure(x => x > 40, "too small");
-        var failed = Parse("x").Map(x => x * 2);
-        var rejected = Parse("1").Ensure(x => x > 40, "too small");
-        var bound = Parse("5").Bind(x => x > 0 ? Result.Success(x.ToString()) : Result<string>.Failure("negative"));
+        Result<int> doubled = Parse("21").Map(x => x * 2).Ensure(x => x > 40, "too small");
+        Result<int> failed = Parse("x").Map(x => x * 2);
+        Result<int> rejected = Parse("1").Ensure(x => x > 40, "too small");
+        Result<string> bound = Parse("5").Bind(x => x > 0 ? Result.Success(x.ToString()) : Result<string>.Failure("negative"));
 
         Assert.Equal(42, doubled.Value);
         Assert.Equal("parse", failed.Error!.Code);
@@ -54,7 +54,7 @@ public class ResultTests
     [Fact]
     public void Try_CatchesExceptionsAsErrors()
     {
-        var result = Result.Try<int>(() => throw new FormatException("bad"));
+        Result<int> result = Result.Try<int>(() => throw new FormatException("bad"));
 
         Assert.True(result.IsFailure);
         Assert.IsType<FormatException>(result.Error!.Exception);
@@ -71,7 +71,7 @@ public class ResultTests
     [Fact]
     public void Combine_ReturnsTheFirstFailure()
     {
-        var combined = Result.Combine(Result.Success(), Result.Failure("first"), Result.Failure("second"));
+        Result combined = Result.Combine(Result.Success(), Result.Failure("first"), Result.Failure("second"));
 
         Assert.Equal("first", combined.Error!.Message);
         Assert.True(Result.Combine(Result.Success(), Result.Success()).IsSuccess);
@@ -80,7 +80,7 @@ public class ResultTests
     [Fact]
     public void Deconstruct_And_TryGetValue()
     {
-        var (isSuccess, value, error) = Parse("7");
+        (bool isSuccess, int value, Error? error) = Parse("7");
         Assert.True(isSuccess);
         Assert.Equal(7, value);
         Assert.Null(error);
@@ -128,7 +128,7 @@ public class OptionTests
     [Fact]
     public void MapWhereOr_Compose()
     {
-        var some = Option.Some(5);
+        Option<int> some = Option.Some(5);
 
         Assert.Equal(Option.Some(10), some.Map(x => x * 2));
         Assert.True(some.Where(x => x > 10).IsNone);
@@ -146,7 +146,7 @@ public class OptionTests
     [Fact]
     public void Extensions_FindValues()
     {
-        var dictionary = new Dictionary<string, int> { ["a"] = 1 };
+        Dictionary<string, int> dictionary = new() { ["a"] = 1 };
 
         Assert.Equal(Option.Some(1), dictionary.GetOption("a"));
         Assert.True(dictionary.GetOption("b").IsNone);

@@ -46,9 +46,13 @@ public abstract class DataContextBase : ReactiveObject
         catch (Exception ex)
         {
             if (onError is not null)
+            {
                 onError(ex);
+            }
             else
+            {
                 ErrorMessage = ex.Message;
+            }
         }
         finally
         {
@@ -71,9 +75,14 @@ public abstract class DataContextBase : ReactiveObject
         catch (Exception ex)
         {
             if (onError is not null)
+            {
                 onError(ex);
+            }
             else
+            {
                 ErrorMessage = ex.Message;
+            }
+
             return default;
         }
         finally

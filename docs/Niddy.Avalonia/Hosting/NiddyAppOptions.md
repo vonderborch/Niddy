@@ -23,6 +23,8 @@ Everything [`NiddyApp`](NiddyApp.md) sets up, filled in by `NiddyApp.Configure`.
 | `PageTransition` | null (instant) | e.g. `new PageSlide(TimeSpan.FromMilliseconds(200))`. |
 | `HandleBackRequests` | true | Android back, iOS back gesture and browser back go back a page. An open overlay dialog is always dismissed first. |
 | `Layout` | null | `Func<PageView, Control>` that wraps the page view in your chrome, e.g. a [`PageMenu`](../PageSystem/PageMenu.md). Dialogs and toasts still cover it. |
+| `PageSort` | null (alphabetical) | `Comparison<PageRegistration>` for the order menus list pages in. Null means [`PageRegistry.Alphabetical`](../PageSystem/PageRegistry.md#ordering): by each page's `SortKey`, which is its display name unless set. Copied to `PageRegistry.Sort` during startup. |
+| `PageSortDescending` | false | Reverse the `PageSort` order. Copied to `PageRegistry.SortDescending`. |
 
 ### Theme
 
@@ -55,7 +57,7 @@ Everything [`NiddyApp`](NiddyApp.md) sets up, filled in by `NiddyApp.Configure`.
 
 | Property | Default | Description |
 |---|---|---|
-| `LoggerFactory` | null | Where the app, including unhandled exceptions, logs. e.g. `NiddyLogging.CreateFactory(AppPaths.For("MyApp"))`. |
+| `LoggerFactory` | null | Where the app, including unhandled exceptions, logs. Niddy's own warnings (a URI that couldn't open, a failed UI-state save, a missing page icon) go here too, or to `Trace` without one. e.g. `NiddyLogging.CreateFactory(AppPaths.For("MyApp"))`. |
 | `HandleUnhandledExceptions` | true | Install [`GlobalExceptionHandler`](GlobalExceptionHandler.md). |
 | `ShowUnhandledExceptionDialog` | true | Show `Dialog.Exception` for UI-thread exceptions. |
 | `ReportIssueLink` | `""` | The exception dialog's Report Issue URL. The button is hidden when empty. |

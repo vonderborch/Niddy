@@ -5,6 +5,7 @@ using Avalonia.VisualTree;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Niddy.Avalonia.Dialogs;
+using Niddy.Avalonia.Dialogs.BuiltIn;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -12,8 +13,8 @@ public class DialogTests
 {
     private static (DialogOverlayHost Host, TextBlock Inner) ShowOverlayHost()
     {
-        var inner = new TextBlock();
-        var host = new DialogOverlayHost { Content = inner };
+        TextBlock inner = new();
+        DialogOverlayHost host = new() { Content = inner };
         new Window { Content = host }.Show();
         return (host, inner);
     }
@@ -26,11 +27,11 @@ public class DialogTests
     [AvaloniaFact]
     public async Task OverlayConfirmation_ReturnsTheClickedButton()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Confirmation.Open(inner, "Title", "Description");
+        Task<bool> result = Dialog.Confirmation.Open(inner, "Title", "Description");
         Pump();
-        var dialog = Assert.IsType<ConfirmationDialog>(ShownDialog(host));
+        ConfirmationDialog dialog = Assert.IsType<ConfirmationDialog>(ShownDialog(host));
         Assert.Equal("Title", dialog.Title);
 
         dialog.ButtonYes.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -43,9 +44,9 @@ public class DialogTests
     [AvaloniaFact]
     public async Task Dismissing_ReturnsTheDefaultResult()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Confirmation.Open(inner, "Title", "Description", defaultResult: true);
+        Task<bool> result = Dialog.Confirmation.Open(inner, "Title", "Description", defaultResult: true);
         Pump();
 
         Assert.True(((IDialog)ShownDialog(host)!).TryDismiss());
@@ -55,9 +56,9 @@ public class DialogTests
     [AvaloniaFact]
     public void DialogsWithoutCancelCannotBeDismissed()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var result = Dialog.Input.Open(inner, "Title", "Description", showCancelButton: false);
+        Task<string?> result = Dialog.Input.Open(inner, "Title", "Description", showCancelButton: false);
         Pump();
 
         Assert.False(((IDialog)ShownDialog(host)!).TryDismiss());
@@ -70,12 +71,12 @@ public class DialogTests
     [AvaloniaFact]
     public async Task OverlayDialogsStack()
     {
-        var (host, inner) = ShowOverlayHost();
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
 
-        var first = Dialog.Notification.Open(inner, "First", "");
+        Task first = Dialog.Notification.Open(inner, "First", "");
         Pump();
-        var firstDialog = ShownDialog(host);
-        var second = Dialog.Notification.Open(inner, "Second", "");
+        Control? firstDialog = ShownDialog(host);
+        Task second = Dialog.Notification.Open(inner, "Second", "");
         Pump();
         Assert.NotSame(firstDialog, ShownDialog(host));
 
@@ -90,9 +91,9 @@ public class DialogTests
     [AvaloniaFact]
     public async Task Progress_ReturnsTrueWhenTheWorkCompletes()
     {
-        var (_, inner) = ShowOverlayHost();
+        (_, TextBlock inner) = ShowOverlayHost();
 
-        var result = await Dialog.Progress.Open(inner, "Working", "", async (progress, token) =>
+        bool result = await Dialog.Progress.Open(inner, "Working", "", async (progress, token) =>
         {
             progress.Report(50);
             await Task.Delay(10, token);
@@ -104,14 +105,14 @@ public class DialogTests
     [AvaloniaFact]
     public async Task WindowDialog_UsesTheFixedSize()
     {
-        var owner = new Window { Content = new TextBlock() };
+        Window owner = new() { Content = new TextBlock() };
         owner.Show();
 
-        var result = Dialog.Notification.Open((Control)owner.Content!, "Title", "", displayMode: DialogDisplayMode.Window,
+        Task result = Dialog.Notification.Open((Control)owner.Content!, "Title", "", displayMode: DialogDisplayMode.Window,
             windowWidth: 320, windowHeight: 240);
         Pump();
 
-        var window = Assert.Single(owner.OwnedWindows);
+        Window window = Assert.Single(owner.OwnedWindows);
         Assert.Equal("Title", window.Title);
         Assert.Equal(320, window.Width);
         Assert.Equal(240, window.Height);
@@ -124,10 +125,10 @@ public class DialogTests
     [AvaloniaFact]
     public void DialogLayout_HidesEmptyPartsAndShowsTheRest()
     {
-        var layout = new DialogLayout { Title = "Title", Content = new TextBlock { Text = "Body" } };
+        DialogLayout layout = new() { Title = "Title", Content = new TextBlock { Text = "Body" } };
         new Window { Content = layout }.Show();
 
-        var texts = layout.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text);
+        IEnumerable<string?> texts = layout.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text);
         Assert.Equal(["Title", "Body"], texts);
 
         layout.Buttons.Add(new Button());

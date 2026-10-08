@@ -28,21 +28,21 @@ public class GlobalExceptionHandlerTests
     [AvaloniaFact]
     public void UIThreadExceptionsAreLoggedRaisedAndKeptRunning()
     {
-        var logger = new ListLogger();
-        using var factory = LoggerFactory.Create(b => b.AddProvider(logger));
+        ListLogger logger = new();
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.AddProvider(logger));
         GlobalExceptionHandler.Install(new GlobalExceptionHandlerOptions { LoggerFactory = factory, ShowDialog = false });
         UnhandledExceptionOccurredEventArgs? raised = null;
         void OnOccurred(object? s, UnhandledExceptionOccurredEventArgs e) => raised = e;
         GlobalExceptionHandler.ExceptionOccurred += OnOccurred;
         try
         {
-            var exception = new InvalidOperationException("Boom");
+            InvalidOperationException exception = new("Boom");
             Assert.True(GlobalExceptionHandler.Handle(exception, UnhandledExceptionSource.UIThread));
 
             Assert.Same(exception, raised!.Exception);
             Assert.Equal(UnhandledExceptionSource.UIThread, raised.Source);
             Assert.False(raised.ShowDialog);
-            var entry = Assert.Single(logger.Entries);
+            (LogLevel Level, Exception? Exception) entry = Assert.Single(logger.Entries);
             Assert.Equal(LogLevel.Error, entry.Level);
             Assert.Same(exception, entry.Exception);
         }
@@ -72,7 +72,7 @@ public class GlobalExceptionHandlerTests
     public void DialogsAreOnlyShownForUIThreadExceptionsByDefault()
     {
         GlobalExceptionHandler.Install();
-        var shown = new List<(UnhandledExceptionSource, bool)>();
+        List<(UnhandledExceptionSource, bool)> shown = new();
         void OnOccurred(object? s, UnhandledExceptionOccurredEventArgs e)
         {
             shown.Add((e.Source, e.ShowDialog));

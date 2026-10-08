@@ -1,3 +1,4 @@
+
 namespace Niddy.Avalonia.PageSystem;
 
 /// <summary>

@@ -14,12 +14,16 @@ namespace Niddy.Avalonia.PageSystem;
 ///             pages in assemblies loaded at runtime (e.g. plugins), as soon as they load.
 ///         </item>
 ///         <item>
-///             Explicitly, with <see cref="Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?)"/>,
+///             Explicitly, with <see cref="Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?, string?)"/>,
 ///             e.g. in <c>NiddyApp.Configure</c>.
 ///         </item>
 ///     </list>
 ///     Both can be used together. A page type is registered once; registering it again with different settings throws,
 ///     and so does a registration that would make a page its own ancestor.
+///     <para>
+///         Pages are listed in <see cref="Sort"/> order: alphabetically by <see cref="PageRegistration.SortKey"/> unless
+///         set otherwise, and reversed when <see cref="SortDescending"/> is true.
+///     </para>
 /// </summary>
 public static class PageRegistry
 {
@@ -32,15 +36,101 @@ public static class PageRegistry
     private static volatile bool _discovered;
     private static bool _discovering;
     private static bool _watchingAssemblyLoads;
+    private static Comparison<PageRegistration> _sort = CompareAlphabetically;
+    private static bool _sortDescending;
 
-    /// <summary>Raised when pages are registered, possibly on a background thread (e.g. when a plugin loads).</summary>
+    /// <summary>
+    ///     Raised when pages are registered, possibly on a background thread (e.g. when a plugin loads), and when
+    ///     <see cref="Sort"/> or <see cref="SortDescending"/> changes.
+    /// </summary>
     public static event EventHandler? PagesChanged;
+
+    /// <summary>
+    ///     Compares pages by <see cref="PageRegistration.SortKey"/> (which defaults to the display name), ignoring case,
+    ///     in the current culture. Ties go by display name, then by the page class's full name. The default
+    ///     <see cref="Sort"/>.
+    /// </summary>
+    public static Comparison<PageRegistration> Alphabetical { get; } = CompareAlphabetically;
+
+    /// <summary>
+    ///     Treats every page as equal, which keeps the declared order: top-level pages in registration order, and a
+    ///     page's children in the order it names them, then those that name it as a parent, in registration order.
+    /// </summary>
+    public static Comparison<PageRegistration> DeclaredOrder { get; } = static (_, _) => 0;
+
+    /// <summary>
+    ///     How <see cref="GetPages"/> orders pages, and so how a <see cref="PageView"/> and a <see cref="PageMenu"/> list
+    ///     them. Defaults to <see cref="Alphabetical"/>. The sort is stable: pages that compare equal keep their
+    ///     <see cref="DeclaredOrder"/>. Changing it raises <see cref="PagesChanged"/>, so open menus re-sort.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///         Type[] order = [typeof(WorkflowsPage), typeof(RunsPage), typeof(IssuesPage)];
+    ///         PageRegistry.Sort = (a, b) =&gt; Array.IndexOf(order, a.PageType).CompareTo(Array.IndexOf(order, b.PageType));
+    ///     </code>
+    /// </example>
+    /// <exception cref="ArgumentNullException">The value is null.</exception>
+    public static Comparison<PageRegistration> Sort
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _sort;
+            }
+        }
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            lock (Gate)
+            {
+                if (_sort == value)
+                {
+                    return;
+                }
+
+                _sort = value;
+            }
+            PagesChanged?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>
+    ///     Whether <see cref="GetPages"/> reverses the <see cref="Sort"/> order. Pages that compare equal still keep
+    ///     their declared order. Changing it raises <see cref="PagesChanged"/>.
+    /// </summary>
+    public static bool SortDescending
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _sortDescending;
+            }
+        }
+        set
+        {
+            lock (Gate)
+            {
+                if (_sortDescending == value)
+                {
+                    return;
+                }
+
+                _sortDescending = value;
+            }
+            PagesChanged?.Invoke(null, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Registers <typeparamref name="TPage"/>.</summary>
     /// <param name="displayName">A human-readable name, e.g. for a navigation menu. Defaults to the class name without a "Page" suffix.</param>
     /// <param name="keepAlive">Whether one instance is kept and reused every time the page is navigated to.</param>
     /// <param name="parents">The pages this page is a child of. They don't have to be registered yet.</param>
-    /// <param name="children">This page's child pages, in the order a <see cref="PageView"/> lists them.</param>
+    /// <param name="children">
+    ///     This page's child pages. They are listed in <see cref="Sort"/> order; with <see cref="DeclaredOrder"/>, in
+    ///     this order.
+    /// </param>
     /// <param name="topLevel">
     ///     Whether the page is listed with the top-level pages, or null (the default) for when it has no parents.
     /// </param>
@@ -48,6 +138,10 @@ public static class PageRegistry
     /// <param name="shortcut">
     ///     A keyboard shortcut that navigates to the page, e.g. <c>"Primary+1"</c>, where <c>Primary</c> is Cmd on macOS
     ///     and Ctrl elsewhere. See <see cref="PageRegistration.Shortcut"/>.
+    /// </param>
+    /// <param name="sortKey">
+    ///     What the page sorts by in <see cref="Alphabetical"/> order, if not its display name. See
+    ///     <see cref="PageRegistration.SortKey"/>.
     /// </param>
     /// <exception cref="ArgumentException">A parent or child isn't a page type, or the shortcut isn't a valid key gesture.</exception>
     /// <exception cref="InvalidOperationException">
@@ -60,15 +154,16 @@ public static class PageRegistry
         IEnumerable<Type>? children = null,
         bool? topLevel = null,
         PageIcon? icon = null,
-        string? shortcut = null
+        string? shortcut = null,
+        string? sortKey = null
     )
-        where TPage : Page, new() => Register(static () => new TPage(), displayName, keepAlive, parents, children, topLevel, icon, shortcut);
+        where TPage : Page, new() => Register(static () => new TPage(), displayName, keepAlive, parents, children, topLevel, icon, shortcut, sortKey);
 
     /// <summary>
     ///     Registers <typeparamref name="TPage"/>, created by <paramref name="factory"/>, e.g. to resolve it from a
     ///     dependency injection container.
     /// </summary>
-    /// <inheritdoc cref="Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?)"/>
+    /// <inheritdoc cref="Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?, string?)"/>
     public static PageRegistration Register<TPage>(
         Func<TPage> factory,
         string? displayName = null,
@@ -77,12 +172,13 @@ public static class PageRegistry
         IEnumerable<Type>? children = null,
         bool? topLevel = null,
         PageIcon? icon = null,
-        string? shortcut = null
+        string? shortcut = null,
+        string? sortKey = null
     )
         where TPage : Page
     {
         ArgumentNullException.ThrowIfNull(factory);
-        var registration = new PageRegistration(
+        PageRegistration registration = new(
             PageId<TPage>.Instance,
             displayName,
             keepAlive,
@@ -91,16 +187,20 @@ public static class PageRegistry
             topLevel,
             icon,
             shortcut is null ? null : PageShortcut.Parse(shortcut, nameof(shortcut)),
+            sortKey,
             factory
         );
 
         lock (Gate)
         {
-            if (PagesById.TryGetValue(registration.PageId, out var existing))
+            if (PagesById.TryGetValue(registration.PageId, out PageRegistration? existing))
             {
                 // The same page registered twice with the same settings (e.g. explicitly and by the generator) is harmless.
                 if (existing.HasSameSettings(registration))
+                {
                     return existing;
+                }
+
                 throw new InvalidOperationException(
                     $"{typeof(TPage).FullName} is already registered with different settings. Register each page once."
                 );
@@ -130,7 +230,9 @@ public static class PageRegistry
     public static void Include<TProvider>() where TProvider : IPageProvider, new()
     {
         if (!Claim(typeof(TProvider)))
+        {
             return;
+        }
 
         try
         {
@@ -150,7 +252,9 @@ public static class PageRegistry
         ArgumentNullException.ThrowIfNull(pageId);
         EnsureDiscovered();
         lock (Gate)
+        {
             return PagesById.GetValueOrDefault(pageId);
+        }
     }
 
     /// <summary>Finds the registration of <typeparamref name="TPage"/>.</summary>
@@ -158,30 +262,45 @@ public static class PageRegistry
     public static PageRegistration? Find<TPage>() where TPage : Page => Find(PageId<TPage>.Instance);
 
     /// <summary>
-    ///     Returns the child pages of <paramref name="parent"/>: those it names as children, in that order, then those
-    ///     that name it as a parent, in registration order. For null, returns the top-level pages in registration order.
+    ///     Returns the child pages of <paramref name="parent"/>, or for null, the top-level pages, in <see cref="Sort"/>
+    ///     order (reversed if <see cref="SortDescending"/>). Pages that compare equal keep their declared order: the
+    ///     pages a parent names as children, in that order, then those that name it as a parent, in registration order.
     /// </summary>
     /// <param name="parent">The parent page, or null for top-level pages.</param>
     public static IReadOnlyList<PageRegistration> GetPages(PageId? parent = null)
     {
         EnsureDiscovered();
+        List<PageRegistration> pages;
+        Comparison<PageRegistration> sort;
+        bool descending;
         lock (Gate)
         {
+            sort = _sort;
+            descending = _sortDescending;
             if (parent is null)
-                return Pages.Where(IsTopLevel).ToArray();
-
-            var pages = new List<PageRegistration>();
-            if (PagesById.TryGetValue(parent, out var registration))
             {
-                foreach (var child in registration.DeclaredChildren)
-                {
-                    if (PagesById.TryGetValue(child, out var page) && !pages.Contains(page))
-                        pages.Add(page);
-                }
+                pages = Pages.Where(IsTopLevel).ToList();
             }
-            pages.AddRange(Pages.Where(p => p.DeclaredParents.Contains(parent) && !pages.Contains(p)));
-            return pages;
+            else
+            {
+                pages = new List<PageRegistration>();
+                if (PagesById.TryGetValue(parent, out PageRegistration? registration))
+                {
+                    foreach (PageId child in registration.DeclaredChildren)
+                    {
+                        if (PagesById.TryGetValue(child, out PageRegistration? page) && !pages.Contains(page))
+                        {
+                            pages.Add(page);
+                        }
+                    }
+                }
+                pages.AddRange(Pages.Where(p => p.DeclaredParents.Contains(parent) && !pages.Contains(p)));
+            }
         }
+
+        // Sorted outside the gate, since the comparison is the app's code. OrderBy is stable, so ties keep their order.
+        Comparer<PageRegistration> comparer = Comparer<PageRegistration>.Create(sort);
+        return descending ? pages.OrderByDescending(p => p, comparer).ToArray() : pages.OrderBy(p => p, comparer).ToArray();
     }
 
     /// <summary>Returns every registered page, in registration order.</summary>
@@ -189,20 +308,35 @@ public static class PageRegistry
     {
         EnsureDiscovered();
         lock (Gate)
+        {
             return Pages.ToArray();
+        }
     }
 
     internal static IReadOnlyList<PageId> GetParents(PageRegistration registration)
     {
         EnsureDiscovered();
         lock (Gate)
+        {
             return ParentsOf(registration);
+        }
+    }
+
+    private static int CompareAlphabetically(PageRegistration a, PageRegistration b)
+    {
+        int result = string.Compare(a.SortKey, b.SortKey, StringComparison.CurrentCultureIgnoreCase);
+        if (result == 0)
+        {
+            result = string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        return result != 0 ? result : string.CompareOrdinal(a.PageType.FullName, b.PageType.FullName);
     }
 
     // Callers hold the gate.
     private static List<PageId> ParentsOf(PageRegistration registration)
     {
-        var parents = registration.DeclaredParents.ToList();
+        List<PageId> parents = registration.DeclaredParents.ToList();
         parents.AddRange(Pages.Where(p => p.DeclaredChildren.Contains(registration.PageId) && !parents.Contains(p.PageId)).Select(p => p.PageId));
         return parents;
     }
@@ -212,17 +346,20 @@ public static class PageRegistry
     /// <summary>Finds a path from <paramref name="start"/> through child pages back to itself. Callers hold the gate.</summary>
     private static List<PageId>? FindCycle(PageId start)
     {
-        var path = new List<PageId> { start };
-        var visited = new HashSet<PageId>();
+        List<PageId> path = new() { start };
+        HashSet<PageId> visited = new();
         return Visit(start) ? path : null;
 
         bool Visit(PageId page)
         {
-            foreach (var child in ChildrenOf(page))
+            foreach (PageId child in ChildrenOf(page))
             {
                 path.Add(child);
                 if (child == start || (visited.Add(child) && Visit(child)))
+                {
                     return true;
+                }
+
                 path.RemoveAt(path.Count - 1);
             }
             return false;
@@ -232,23 +369,30 @@ public static class PageRegistry
     /// <summary>Every declared child of <paramref name="page"/>, registered or not. Callers hold the gate.</summary>
     private static IEnumerable<PageId> ChildrenOf(PageId page)
     {
-        var declared = PagesById.TryGetValue(page, out var registration) ? registration.DeclaredChildren : [];
+        IReadOnlyList<PageId> declared = PagesById.TryGetValue(page, out PageRegistration? registration) ? registration.DeclaredChildren : [];
         return declared.Concat(Pages.Where(p => p.DeclaredParents.Contains(page)).Select(p => p.PageId)).Distinct();
     }
 
     private static PageId[] ToPageIds(IEnumerable<Type>? types, string parameterName)
     {
         if (types is null)
+        {
             return [];
+        }
 
-        var ids = new List<PageId>();
-        foreach (var type in types)
+        List<PageId> ids = new();
+        foreach (Type type in types)
         {
             if (type is null || !typeof(Page).IsAssignableFrom(type))
+            {
                 throw new ArgumentException($"{type?.FullName ?? "null"} isn't a page type.", parameterName);
-            var id = PageId.Of(type);
+            }
+
+            PageId id = PageId.Of(type);
             if (!ids.Contains(id))
+            {
                 ids.Add(id);
+            }
         }
         return ids.ToArray();
     }
@@ -260,13 +404,18 @@ public static class PageRegistry
     private static void EnsureDiscovered()
     {
         if (_discovered)
+        {
             return;
+        }
 
         lock (Gate)
         {
             // A provider's pages raise PagesChanged, whose handlers may look pages up again on this thread.
             if (_discovered || _discovering)
+            {
                 return;
+            }
+
             _discovering = true;
         }
 
@@ -279,14 +428,19 @@ public static class PageRegistry
                 _watchingAssemblyLoads = true;
             }
 
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
                 IncludeAssembly(assembly);
+            }
+
             _discovered = true;
         }
         finally
         {
             lock (Gate)
+            {
                 _discovering = false;
+            }
         }
     }
 
@@ -294,16 +448,20 @@ public static class PageRegistry
     {
         // Only assemblies built against Niddy.Avalonia can have pages; this skips the framework cheaply.
         if (assembly.IsDynamic || !assembly.GetReferencedAssemblies().Any(a => a.Name == NiddyAvaloniaAssemblyName))
+        {
             return;
+        }
 
-        foreach (var attribute in assembly.GetCustomAttributes<PageProviderAttribute>())
+        foreach (PageProviderAttribute attribute in assembly.GetCustomAttributes<PageProviderAttribute>())
         {
             if (!Claim(attribute.ProviderType))
+            {
                 continue;
+            }
 
             try
             {
-                var provider = Activator.CreateInstance(attribute.ProviderType) as IPageProvider
+                IPageProvider provider = Activator.CreateInstance(attribute.ProviderType) as IPageProvider
                     ?? throw new InvalidOperationException($"{attribute.ProviderType.FullName} isn't an {nameof(IPageProvider)}.");
                 provider.RegisterPages();
             }
@@ -318,12 +476,16 @@ public static class PageRegistry
     private static bool Claim(Type providerType)
     {
         lock (Gate)
+        {
             return IncludedProviders.Add(providerType);
+        }
     }
 
     private static void Release(Type providerType)
     {
         lock (Gate)
+        {
             IncludedProviders.Remove(providerType);
+        }
     }
 }

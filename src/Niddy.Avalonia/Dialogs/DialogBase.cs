@@ -72,9 +72,14 @@ public abstract class DialogBase<TResult> : DialogLayout, IDialog
     bool IDialog.TryDismiss(bool force)
     {
         if (_result.Task.IsCompleted)
+        {
             return true;
+        }
+
         if (!force && !CanDismiss)
+        {
             return false;
+        }
 
         OnDismissed();
         Close(DismissResult);
@@ -94,6 +99,8 @@ public abstract class DialogBase<TResult> : DialogLayout, IDialog
     {
         base.OnKeyDown(e);
         if (!e.Handled && e.Key == Key.Escape)
+        {
             e.Handled = ((IDialog)this).TryDismiss();
+        }
     }
 }

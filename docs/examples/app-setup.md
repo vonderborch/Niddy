@@ -15,8 +15,8 @@ No App.axaml is needed.
 using Avalonia.Animation;
 using Niddy.Avalonia.Hosting;
 using Niddy.Avalonia.PageSystem;
-using Niddy.IO;
-using Niddy.Logging;
+using Niddy.Core.IO;
+using Niddy.Core.Logging;
 
 namespace Notes;
 
@@ -24,7 +24,7 @@ public class App : NiddyApp
 {
     protected override void Configure(NiddyAppOptions options)
     {
-        var paths = AppPaths.For("Notes").EnsureCreated();
+        AppPaths paths = AppPaths.For("Notes").EnsureCreated();
 
         options.AppName = "Notes";
         options.Title = "Notes";
@@ -33,6 +33,7 @@ public class App : NiddyApp
         options.AppDataContext = new MainDataContext(paths);
         options.PageTransition = new CrossFade(TimeSpan.FromMilliseconds(150));
         options.Layout = pages => new PageMenu { Content = pages, Mode = PageMenuMode.Tree };
+        // Menus list pages alphabetically by sort key; options.PageSort sets any other order.
         options.LoggerFactory = NiddyLogging.CreateFactory(paths);
         options.ReportIssueLink = "https://github.com/me/notes/issues/new";
     }
@@ -59,8 +60,8 @@ public static class Program
 One object, shared by every page as `AppDataContext`.
 
 ```csharp
-using Niddy.IO;
-using Niddy.Settings;
+using Niddy.Core.IO;
+using Niddy.Core.Settings;
 
 namespace Notes;
 
@@ -93,7 +94,7 @@ public sealed class MainDataContext
 using System.Collections.ObjectModel;
 using Niddy.Avalonia.DataContexts;
 using Niddy.Avalonia.PageSystem;
-using Niddy.IO;
+using Niddy.Core.IO;
 using ReactiveUI;
 
 namespace Notes;
@@ -116,12 +117,13 @@ public sealed class HomePageDataContext(AppPaths paths) : DataContextBase
     public Task LoadAsync() => RunAsync(async () =>
     {
         Notes.Clear();
-        foreach (var file in await Task.Run(() => Directory.GetFiles(paths.Data, "*.md")))
+        foreach (string file in await Task.Run(() => Directory.GetFiles(paths.Data, "*.md")))
             Notes.Add(Path.GetFileNameWithoutExtension(file));
     });
 }
 
-[PageRegistration(DisplayName = "Settings", KeepAlive = true, Shortcut = "Primary+Shift+S",
+// SortKey keeps Settings last in the menu, whatever other pages are added.
+[PageRegistration(DisplayName = "Settings", KeepAlive = true, Shortcut = "Primary+Shift+S", SortKey = "zzz",
     Children = [typeof(AppearanceSettingsPage)])]
 public partial class SettingsPage : Page<MainDataContext, SettingsPageDataContext>
 {

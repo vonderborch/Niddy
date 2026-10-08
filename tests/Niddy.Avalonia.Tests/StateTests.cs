@@ -13,7 +13,9 @@ public sealed class StateTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_directory))
+        {
             Directory.Delete(_directory, recursive: true);
+        }
     }
 
     private UiStateStore NewStore() => new(Path.Combine(_directory, "ui-state.json"), TimeSpan.FromMilliseconds(1));
@@ -38,7 +40,7 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void RestoreAppliesSizeAndState()
     {
-        var window = new Window { MinWidth = 500 };
+        Window window = new() { MinWidth = 500 };
 
         WindowMemory.Restore(window, new WindowPlacement(400, 700, State: WindowState.Maximized));
 
@@ -50,7 +52,7 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void RestoreIgnoresMinimized()
     {
-        var window = new Window();
+        Window window = new();
         WindowMemory.Restore(window, new WindowPlacement(640, 480, State: WindowState.Minimized));
         Assert.Equal(WindowState.Normal, window.WindowState);
     }
@@ -58,10 +60,10 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void WindowSizesAreSavedAndRestored()
     {
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var window = new Window { Width = 640, Height = 480 };
-            using var memory = WindowMemory.Attach(window, "Main", store);
+            Window window = new() { Width = 640, Height = 480 };
+            using IDisposable memory = WindowMemory.Attach(window, "Main", store);
             window.Show();
             window.Width = 900;
             window.Height = 700;
@@ -70,10 +72,10 @@ public sealed class StateTests : IDisposable
             Assert.Equal(900, store.GetWindow("Main")!.Width);
         }
 
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var window = new Window { Width = 100, Height = 100 };
-            using var memory = WindowMemory.Attach(window, "Main", store);
+            Window window = new() { Width = 100, Height = 100 };
+            using IDisposable memory = WindowMemory.Attach(window, "Main", store);
             Assert.Equal(900, window.Width);
             Assert.Equal(700, window.Height);
         }
@@ -82,12 +84,12 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void WindowsWithoutAStoreAreLeftAlone()
     {
-        var previous = UiStateStore.Default;
+        UiStateStore? previous = UiStateStore.Default;
         UiStateStore.Default = null;
         try
         {
-            var window = new Window { Width = 640 };
-            using var memory = WindowMemory.Attach(window, "Main");
+            Window window = new() { Width = 640 };
+            using IDisposable memory = WindowMemory.Attach(window, "Main");
             Assert.Equal(640, window.Width);
         }
         finally
@@ -99,18 +101,18 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void GridSizesAreSavedAndRestored()
     {
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("200,*") };
-            using var memory = LayoutMemory.Attach(grid, "Split", store);
+            Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("200,*") };
+            using IDisposable memory = LayoutMemory.Attach(grid, "Split", store);
             grid.ColumnDefinitions[0].Width = new GridLength(320);
             store.Flush();
         }
 
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("200,*") };
-            using var memory = LayoutMemory.Attach(grid, "Split", store);
+            Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("200,*") };
+            using IDisposable memory = LayoutMemory.Attach(grid, "Split", store);
             Assert.Equal(new GridLength(320), grid.ColumnDefinitions[0].Width);
             Assert.Equal(new GridLength(1, GridUnitType.Star), grid.ColumnDefinitions[1].Width);
         }
@@ -119,11 +121,11 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void GridSizesAreIgnoredWhenTheColumnsChanged()
     {
-        using var store = NewStore();
+        using UiStateStore store = NewStore();
         store.SetLayout("Split/columns", ["320", "*"]);
 
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("200,*,100") };
-        using var memory = LayoutMemory.Attach(grid, "Split", store);
+        Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("200,*,100") };
+        using IDisposable memory = LayoutMemory.Attach(grid, "Split", store);
 
         Assert.Equal(new GridLength(200), grid.ColumnDefinitions[0].Width);
     }
@@ -131,21 +133,21 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void ProportionsAreSavedAndRestored()
     {
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var left = new Border();
-            var panel = new ProportionalStackPanel { Children = { left, new ProportionalStackPanelSplitter(), new Border() } };
-            using var memory = LayoutMemory.Attach(panel, "Panes", store);
+            Border left = new();
+            ProportionalStackPanel panel = new() { Children = { left, new ProportionalStackPanelSplitter(), new Border() } };
+            using IDisposable memory = LayoutMemory.Attach(panel, "Panes", store);
             ProportionalStackPanel.SetProportion(left, 0.25);
             ProportionalStackPanel.SetProportion(panel.Children[2], 0.75);
             store.Flush();
         }
 
-        using (var store = NewStore())
+        using (UiStateStore store = NewStore())
         {
-            var left = new Border();
-            var panel = new ProportionalStackPanel { Children = { left, new ProportionalStackPanelSplitter(), new Border() } };
-            using var memory = LayoutMemory.Attach(panel, "Panes", store);
+            Border left = new();
+            ProportionalStackPanel panel = new() { Children = { left, new ProportionalStackPanelSplitter(), new Border() } };
+            using IDisposable memory = LayoutMemory.Attach(panel, "Panes", store);
             Assert.Equal(0.25, ProportionalStackPanel.GetProportion(left));
         }
     }
@@ -153,7 +155,35 @@ public sealed class StateTests : IDisposable
     [AvaloniaFact]
     public void OtherControlsAreNotSupported()
     {
-        using var store = NewStore();
+        using UiStateStore store = NewStore();
         Assert.Throws<NotSupportedException>(() => LayoutMemory.Attach(new StackPanel(), "x", store));
+    }
+
+    [Fact]
+    public void DisposingSavesPendingChanges()
+    {
+        string path = Path.Combine(_directory, "ui-state.json");
+        using (UiStateStore store = new(path, TimeSpan.FromHours(1)))
+        {
+            store.SetLayout("Split", ["1*", "2*"]);
+            Assert.True(store.HasPendingChanges);
+        }
+
+        using UiStateStore reloaded = new(path);
+        Assert.Equal(["1*", "2*"], reloaded.GetLayout("Split"));
+    }
+
+    [Fact]
+    public void AFailedSaveIsReportedNotThrown()
+    {
+        // A directory where the file should be makes every save fail.
+        string path = Path.Combine(_directory, "ui-state.json");
+        Directory.CreateDirectory(path);
+        using UiStateStore store = new(path, TimeSpan.FromHours(1));
+        store.SetLayout("Split", ["1*"]);
+
+        // Without an error handler the debouncer would rethrow on the thread pool and take the test host down.
+        store.Flush();
+        Assert.False(store.HasPendingChanges);
     }
 }

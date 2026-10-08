@@ -32,7 +32,7 @@ The standard dialog layout: a title, a description, the dialog's own content, th
 Buttons can also be added in code:
 
 ```csharp
-var retry = new Button { Content = "Retry" };
+Button retry = new() { Content = "Retry" };
 retry.Click += (_, _) => Close(true);
 Buttons.Insert(0, retry);
 ```

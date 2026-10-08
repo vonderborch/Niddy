@@ -119,6 +119,7 @@ A simple page with no data contexts of its own:
 
 ```csharp
 using Avalonia.Controls;
+using Niddy.Avalonia.PageSystem;
 using Page = Niddy.Avalonia.PageSystem.Page;
 
 [PageRegistration(DisplayName = "About")]

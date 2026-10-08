@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Niddy.Security;
+namespace Niddy.Core.Security;
 
 /// <summary>
 /// Cross-platform <see cref="ISecureStorage" /> fallback that stores tokens in AES-256-CBC
-/// encrypted files under a <c>.secure</c> subdirectory of <paramref name="baseDirectory" />.
+/// encrypted files under a <c>.secure</c> subdirectory of a base directory given to the constructor.
 /// The encryption key is derived from user- and machine-specific data via PBKDF2.
 /// </summary>
 public sealed class EncryptedFileSecureStorage : ISecureStorage
@@ -14,19 +14,21 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
 
     private readonly byte[] _entropy;
 
+    /// <summary>Creates a storage whose files go in a <c>.secure</c> subdirectory of <paramref name="baseDirectory" />, creating it if needed.</summary>
     /// <param name="baseDirectory">Base directory for the application data.</param>
     /// <param name="serviceName">Application identifier used as part of the entropy.</param>
     public EncryptedFileSecureStorage(string baseDirectory, string serviceName = "app")
     {
         if (string.IsNullOrWhiteSpace(baseDirectory))
         {
-            throw new ArgumentException("Base directory cannot be null or empty.", "baseDirectory");
+            throw new ArgumentException("Base directory cannot be null or empty.", nameof(baseDirectory));
         }
-        _entropy = Encoding.UTF8.GetBytes(serviceName + "_SecureStorage_Entropy");
-        _storageDirectory = Path.Combine(baseDirectory, ".secure");
-        Directory.CreateDirectory(_storageDirectory);
+        this._entropy = Encoding.UTF8.GetBytes(serviceName + "_SecureStorage_Entropy");
+        this._storageDirectory = Path.Combine(baseDirectory, ".secure");
+        Directory.CreateDirectory(this._storageDirectory);
     }
 
+    /// <inheritdoc />
     public string? GetToken(string key)
     {
         string filePath = GetFilePath(key);
@@ -48,6 +50,7 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
         }
     }
 
+    /// <inheritdoc />
     public void SetToken(string key, string? value)
     {
         string filePath = GetFilePath(key);
@@ -64,6 +67,7 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
         }
     }
 
+    /// <inheritdoc />
     public bool TokenExists(string key)
     {
         return File.Exists(GetFilePath(key));
@@ -72,7 +76,7 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
     private string GetFilePath(string key)
     {
         string text = key.Replace(" ", "_").Replace(".", "_");
-        return Path.Combine(_storageDirectory, text + ".token");
+        return Path.Combine(this._storageDirectory, text + ".token");
     }
 
     private byte[] Encrypt(byte[] data)
@@ -81,9 +85,9 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
         aes.GenerateIV();
         aes.Key = DeriveKey(aes.KeySize / 8);
         using ICryptoTransform transform = aes.CreateEncryptor();
-        using MemoryStream memoryStream = new MemoryStream();
+        using MemoryStream memoryStream = new();
         memoryStream.Write(aes.IV, 0, aes.IV.Length);
-        using (CryptoStream cryptoStream = new CryptoStream(memoryStream, transform, CryptoStreamMode.Write))
+        using (CryptoStream cryptoStream = new(memoryStream, transform, CryptoStreamMode.Write))
         {
             cryptoStream.Write(data, 0, data.Length);
         }
@@ -104,9 +108,9 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
         byte[] array2 = new byte[encryptedData.Length - 16];
         Array.Copy(encryptedData, 16, array2, 0, array2.Length);
         using ICryptoTransform transform = aes.CreateDecryptor();
-        using MemoryStream stream = new MemoryStream(array2);
-        using CryptoStream cryptoStream = new CryptoStream(stream, transform, CryptoStreamMode.Read);
-        using MemoryStream memoryStream = new MemoryStream();
+        using MemoryStream stream = new(array2);
+        using CryptoStream cryptoStream = new(stream, transform, CryptoStreamMode.Read);
+        using MemoryStream memoryStream = new();
         cryptoStream.CopyTo(memoryStream);
         return memoryStream.ToArray();
     }
@@ -115,7 +119,7 @@ public sealed class EncryptedFileSecureStorage : ISecureStorage
     {
         string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         byte[] bytes = Encoding.UTF8.GetBytes(folderPath + "_" + Environment.MachineName);
-        return Rfc2898DeriveBytes.Pbkdf2(bytes, _entropy, 10000, HashAlgorithmName.SHA256, keyBytes);
+        return Rfc2898DeriveBytes.Pbkdf2(bytes, this._entropy, 10000, HashAlgorithmName.SHA256, keyBytes);
     }
 
     private static Aes CreateAes()

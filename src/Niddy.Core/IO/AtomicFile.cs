@@ -1,7 +1,7 @@
 using System.Text;
-using Niddy.Helpers;
+using Niddy.Core.Resilience;
 
-namespace Niddy.IO;
+namespace Niddy.Core.IO;
 
 /// <summary>
 /// Writes files so readers only ever see the old contents or the new ones, never a half-written file, even if the
@@ -27,10 +27,10 @@ public static class AtomicFile
     /// <summary>Writes <paramref name="bytes"/> to <paramref name="path"/> atomically.</summary>
     public static void WriteAllBytes(string path, ReadOnlySpan<byte> bytes)
     {
-        var temp = CreateTempPath(path);
+        string temp = CreateTempPath(path);
         try
         {
-            using (var stream = OpenTemp(temp, useAsync: false))
+            using (FileStream stream = OpenTemp(temp, useAsync: false))
             {
                 stream.Write(bytes);
                 stream.Flush(flushToDisk: true);
@@ -56,10 +56,10 @@ public static class AtomicFile
     public static void Write(string path, Action<Stream> write)
     {
         ArgumentNullException.ThrowIfNull(write);
-        var temp = CreateTempPath(path);
+        string temp = CreateTempPath(path);
         try
         {
-            using (var stream = OpenTemp(temp, useAsync: false))
+            using (FileStream stream = OpenTemp(temp, useAsync: false))
             {
                 write(stream);
                 stream.Flush(flushToDisk: true);
@@ -81,10 +81,10 @@ public static class AtomicFile
     public static async Task WriteAsync(string path, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(write);
-        var temp = CreateTempPath(path);
+        string temp = CreateTempPath(path);
         try
         {
-            await using (var stream = OpenTemp(temp, useAsync: true))
+            await using (FileStream stream = OpenTemp(temp, useAsync: true))
             {
                 await write(stream, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
@@ -104,8 +104,8 @@ public static class AtomicFile
     private static string CreateTempPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var fullPath = Path.GetFullPath(path);
-        var directory = Path.GetDirectoryName(fullPath)!;
+        string fullPath = Path.GetFullPath(path);
+        string directory = Path.GetDirectoryName(fullPath)!;
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
     }
@@ -113,18 +113,27 @@ public static class AtomicFile
     private static FileStream OpenTemp(string temp, bool useAsync) =>
         new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync);
 
+    private static readonly RetryOptions ReplaceRetry = new()
+    {
+        MaxAttempts = 5,
+        BaseDelay = TimeSpan.FromMilliseconds(20),
+        MaxDelay = TimeSpan.FromMilliseconds(200),
+        ShouldRetry = ex => ex is IOException or UnauthorizedAccessException,
+    };
+
     private static void Replace(string temp, string path) =>
-        Retry.Execute(() => File.Move(temp, path, overwrite: true), maxRetries: 5, baseDelayMs: 20, maxDelayMs: 200);
+        Retry.ExecuteAndRethrowLast(() => File.Move(temp, path, overwrite: true), ReplaceRetry);
 
     private static void TryDelete(string temp)
     {
         try
         {
-            File.Delete(temp);
+            // A short retry covers antivirus or indexers briefly holding the new file.
+            File.DeleteWithRetry(temp, maxAttempts: 3, baseDelayMs: 20, releaseHandles: false, throwOnFailure: false);
         }
         catch
         {
-            // Best effort: a stray temporary file is harmless.
+            // Best effort: a stray temporary file is harmless, and it mustn't hide the original error.
         }
     }
 }

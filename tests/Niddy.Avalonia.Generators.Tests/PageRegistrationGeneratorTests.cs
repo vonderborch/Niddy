@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Niddy.Avalonia.PageSystem;
 
 namespace Niddy.Avalonia.Generators.Tests;
@@ -31,7 +33,7 @@ public class PageRegistrationGeneratorTests
 
     private static Result Run(string source, string assemblyName = "App", IEnumerable<MetadataReference>? references = null)
     {
-        var compilation = CSharpCompilation.Create(
+        CSharpCompilation compilation = CSharpCompilation.Create(
             assemblyName,
             [CSharpSyntaxTree.ParseText(source, path: "Pages.cs")],
             references ?? References,
@@ -39,15 +41,15 @@ public class PageRegistrationGeneratorTests
         );
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new PageRegistrationGenerator());
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
-        var generated = driver.GetRunResult().GeneratedTrees.SingleOrDefault();
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation? output, out ImmutableArray<Diagnostic> diagnostics);
+        SyntaxTree? generated = driver.GetRunResult().GeneratedTrees.SingleOrDefault();
         return new Result(output, diagnostics, generated?.GetText().ToString());
     }
 
     private static MetadataReference Emit(Compilation compilation)
     {
-        using var stream = new MemoryStream();
-        var result = compilation.Emit(stream);
+        using MemoryStream stream = new();
+        EmitResult result = compilation.Emit(stream);
         Assert.True(result.Success, string.Join("\n", result.Diagnostics));
         return MetadataReference.CreateFromImage(stream.ToArray());
     }
@@ -55,7 +57,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void RegistersAttributedPagesInDeclarationOrder()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             [PageRegistration(DisplayName = "Start")]
             public sealed class HomePage : Page;
@@ -69,7 +71,7 @@ public class PageRegistrationGeneratorTests
 
         Assert.Empty(result.GeneratorDiagnostics);
         Assert.Empty(result.Errors);
-        var source = result.Source!;
+        string source = result.Source!;
         Assert.Contains("[assembly: global::Niddy.Avalonia.PageSystem.PageProviderAttribute(typeof(global::Niddy.Generated.Pages_App))]", source);
         Assert.Contains("Register<global::App.HomePage>(factory: static () => new global::App.HomePage(), displayName: \"Start\", keepAlive: false, parents: null, children: null, topLevel: null, icon: null);", source);
         Assert.Contains("Register<global::App.SettingsPage>(factory: static () => new global::App.SettingsPage(), displayName: null, keepAlive: true, parents: null, children: new global::System.Type[] { typeof(global::App.GeneralPage) }, topLevel: null, icon: null);", source);
@@ -82,7 +84,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void CyclesAreReportedAndNotRegistered()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             [PageRegistration(Children = [typeof(B)])] public sealed class A : Page;
             [PageRegistration(Children = [typeof(C)])] public sealed class B : Page;
@@ -90,7 +92,7 @@ public class PageRegistrationGeneratorTests
             [PageRegistration(Parents = [typeof(A)])] public sealed class D : Page;
             """);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY001", diagnostic.Id);
         Assert.Contains("App.A > App.B > App.C > App.A", diagnostic.GetMessage());
         Assert.DoesNotContain("Register<global::App.A>", result.Source);
@@ -102,7 +104,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void ClassesThatArentPagesAreReported()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             [PageRegistration] public sealed class NotAPage;
             """);
 
@@ -118,9 +120,9 @@ public class PageRegistrationGeneratorTests
     [InlineData("public class Outer { [PageRegistration] private sealed class P : Page; }", "private")]
     public void PagesThatCantBeCreatedAreReported(string declaration, string reason)
     {
-        var result = Run(Usings + declaration);
+        Result result = Run(Usings + declaration);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY003", diagnostic.Id);
         Assert.Contains(reason, diagnostic.GetMessage());
         Assert.Null(result.Source);
@@ -129,7 +131,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void ParentsAndChildrenThatArentPagesAreReportedAndSkipped()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             public sealed class NotAPage;
             [PageRegistration] public sealed class Home : Page;
@@ -144,13 +146,13 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void UnregisteredParentsAndChildrenAreWarnedAbout()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             public sealed class Manual : Page;
             [PageRegistration(Parents = [typeof(Manual)])] public sealed class A : Page;
             """);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY005", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
         Assert.Contains("typeof(global::App.Manual)", result.Source);
@@ -159,14 +161,14 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void IncludesTheProvidersOfReferencedAssemblies()
     {
-        var library = Run(Usings + """
+        Result library = Run(Usings + """
             namespace Lib;
             [PageRegistration] public sealed class LibPage : Page;
             """, assemblyName: "My.Lib");
         Assert.Empty(library.Errors);
-        var libraryReference = Emit(library.Output);
+        MetadataReference libraryReference = Emit(library.Output);
 
-        var app = Run(Usings + """
+        Result app = Run(Usings + """
             [PageRegistration] public sealed class AppPage : Page;
             """, references: [.. References, libraryReference]);
 
@@ -177,12 +179,12 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void AssemblyWithoutPagesStillIncludesReferencedProviders()
     {
-        var library = Run(Usings + """
+        Result library = Run(Usings + """
             [PageRegistration] public sealed class LibPage : Page;
             """, assemblyName: "Lib");
-        var libraryReference = Emit(library.Output);
+        MetadataReference libraryReference = Emit(library.Output);
 
-        var app = Run("public static class Program;", references: [.. References, libraryReference]);
+        Result app = Run("public static class Program;", references: [.. References, libraryReference]);
 
         Assert.Empty(app.Errors);
         Assert.Contains("Include<global::Niddy.Generated.Pages_Lib>", app.Source);
@@ -198,7 +200,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void GeneratesNothingWithoutNiddyAvalonia()
     {
-        var result = Run("public static class Program;", references: ReferencesWithoutNiddy);
+        Result result = Run("public static class Program;", references: ReferencesWithoutNiddy);
 
         Assert.Null(result.Source);
         Assert.Empty(result.GeneratorDiagnostics);
@@ -207,7 +209,7 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void IconsAreRegisteredWithEverySize()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             [PageRegistration, PageIcon("M0,0 L16,16", Size = 16), PageIcon(Data = "M0,0 L24,24", Size = 24.5)]
             public sealed class DataPage : Page;
@@ -234,14 +236,14 @@ public class PageRegistrationGeneratorTests
     [InlineData("[PageIcon(\"\")]", "is empty")]
     public void InvalidIconsAreReportedAndSkipped(string attribute, string reason)
     {
-        var result = Run(Usings + $$"""
+        Result result = Run(Usings + $$"""
             namespace App;
             [PageRegistration, PageIcon("M0,0 L1,1", Size = 16)]
             {{attribute}}
             public sealed class P : Page;
             """);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY006", diagnostic.Id);
         Assert.Contains(reason, diagnostic.GetMessage());
         Assert.Empty(result.Errors);
@@ -251,11 +253,11 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void IconsWithoutARegistrationAreWarnedAbout()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             [PageIcon("M0,0 L1,1")] public sealed class Manual : Page;
             """);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY007", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
         Assert.Null(result.Source);
@@ -264,20 +266,20 @@ public class PageRegistrationGeneratorTests
     [Fact]
     public void GeneratedProviderRegistersPagesAtRuntime()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace Runtime;
             [PageRegistration(DisplayName = "Generated"), PageIcon("M0,0 L1,1", Size = 16), PageIcon("M0,0 L2,2")]
             public sealed class GeneratedPage : Page;
             """, assemblyName: "Runtime.Pages");
         Assert.Empty(result.Errors);
 
-        using var stream = new MemoryStream();
+        using MemoryStream stream = new();
         Assert.True(result.Output.Emit(stream, cancellationToken: TestContext.Current.CancellationToken).Success);
-        var assembly = System.Reflection.Assembly.Load(stream.ToArray());
-        var provider = (IPageProvider)Activator.CreateInstance(assembly.GetType("Niddy.Generated.Pages_Runtime_Pages")!)!;
+        Assembly assembly = System.Reflection.Assembly.Load(stream.ToArray());
+        IPageProvider provider = (IPageProvider)Activator.CreateInstance(assembly.GetType("Niddy.Generated.Pages_Runtime_Pages")!)!;
         provider.RegisterPages();
 
-        var registration = PageRegistry.Find(PageId.Of(assembly.GetType("Runtime.GeneratedPage")!));
+        PageRegistration? registration = PageRegistry.Find(PageId.Of(assembly.GetType("Runtime.GeneratedPage")!));
         Assert.NotNull(registration);
         Assert.Equal("Generated", registration.DisplayName);
         Assert.Equal(
@@ -285,10 +287,11 @@ public class PageRegistrationGeneratorTests
             registration.Icon
         );
     }
+
     [Fact]
     public void ShortcutsAreRegistered()
     {
-        var result = Run(Usings + """
+        Result result = Run(Usings + """
             namespace App;
             [PageRegistration(Shortcut = "Primary+1")] public sealed class Home : Page;
             [PageRegistration(Shortcut = "Ctrl+Shift+F5")] public sealed class Settings : Page;
@@ -302,6 +305,23 @@ public class PageRegistrationGeneratorTests
         Assert.Equal(2, System.Text.RegularExpressions.Regex.Count(result.Source!, "shortcut:"));
     }
 
+    [Fact]
+    public void SortKeysAreRegistered()
+    {
+        Result result = Run(Usings + """
+            namespace App;
+            [PageRegistration(SortKey = "0")] public sealed class Home : Page;
+            [PageRegistration(SortKey = "a\"b", Shortcut = "Primary+1")] public sealed class Settings : Page;
+            [PageRegistration] public sealed class About : Page;
+            """);
+
+        Assert.Empty(result.GeneratorDiagnostics);
+        Assert.Empty(result.Errors);
+        Assert.Contains(", sortKey: \"0\");", result.Source);
+        Assert.Contains(", shortcut: \"Primary+1\", sortKey: \"a\\\"b\");", result.Source);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Count(result.Source!, "sortKey:"));
+    }
+
     [Theory]
     [InlineData("Ctrl+Nope", "Nope")]
     [InlineData("Hyper+S", "Hyper")]
@@ -309,13 +329,13 @@ public class PageRegistrationGeneratorTests
     [InlineData("", "empty")]
     public void InvalidShortcutsAreReportedAndSkipped(string shortcut, string reason)
     {
-        var result = Run(Usings + $$"""
+        Result result = Run(Usings + $$"""
             namespace App;
             [PageRegistration(Shortcut = "{{shortcut}}")] public sealed class Bad : Page;
             [PageRegistration] public sealed class Good : Page;
             """);
 
-        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal("NIDDY008", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains(reason, diagnostic.GetMessage());

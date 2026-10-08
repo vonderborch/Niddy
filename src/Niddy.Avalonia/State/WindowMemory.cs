@@ -10,8 +10,8 @@ namespace Niddy.Avalonia.State;
 /// so the window opens where it normally would.
 /// </summary>
 /// <remarks>
-/// Uses <see cref="Default" />, which <see cref="NiddyApp" /> sets up (and uses for the main
-/// window) when <see cref="AppName" /> is set. Set the key before the window is shown.
+/// Uses <see cref="UiStateStore.Default" />, which <see cref="Hosting.NiddyApp" /> sets up (and uses for the main
+/// window) when <see cref="Hosting.NiddyAppOptions.RememberWindowState" /> is true. Set the key before the window is shown.
 /// </remarks>
 /// <example>
 /// <code>
@@ -100,7 +100,7 @@ public static class WindowMemory
 
     private sealed class EmptyDisposable : IDisposable
     {
-        public static readonly EmptyDisposable Instance = new EmptyDisposable();
+        public static readonly EmptyDisposable Instance = new();
 
         public void Dispose()
         {
@@ -118,12 +118,12 @@ public static class WindowMemory
 
     static WindowMemory()
     {
-        KeyProperty = AvaloniaProperty.RegisterAttached<Window, string>("Key", typeof(WindowMemory));
-        RegistrationProperty = AvaloniaProperty.RegisterAttached<Window, IDisposable>("Registration", typeof(WindowMemory));
+        KeyProperty = AvaloniaProperty.RegisterAttached<Window, string?>("Key", typeof(WindowMemory));
+        RegistrationProperty = AvaloniaProperty.RegisterAttached<Window, IDisposable?>("Registration", typeof(WindowMemory));
         KeyProperty.Changed.AddClassHandler<Window>((window, e) =>
         {
             window.GetValue(RegistrationProperty)?.Dispose();
-            window.SetValue(RegistrationProperty, (e.NewValue is string { Length: >0 } text) ? Attach(window, text) : null);
+            window.SetValue(RegistrationProperty, e.NewValue is string { Length: > 0 } text ? Attach(window, text) : null);
         });
     }
 
@@ -144,25 +144,23 @@ public static class WindowMemory
     /// </summary>
     /// <param name="window">The window.</param>
     /// <param name="key">The key to save the placement under, unique among the app's windows.</param>
-    /// <param name="store">The store; defaults to <see cref="Default" />. If there's none, nothing happens.</param>
+    /// <param name="store">The store; defaults to <see cref="UiStateStore.Default" />. If there's none, nothing happens.</param>
     /// <returns>Stops remembering the window when disposed.</returns>
     public static IDisposable Attach(Window window, string key, UiStateStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        if (store == null)
-        {
-            store = UiStateStore.Default;
-        }
+        store ??= UiStateStore.Default;
         if (store == null)
         {
             return EmptyDisposable.Instance;
         }
-        WindowPlacement window2 = store.GetWindow(key);
-        if ((object)window2 != null)
+
+        if (store.GetWindow(key) is { } placement)
         {
-            Restore(window, window2);
+            Restore(window, placement);
         }
+
         return new Tracker(window, key, store);
     }
 
@@ -176,32 +174,18 @@ public static class WindowMemory
         {
             window.Height = Math.Max(placement.Height, window.MinHeight);
         }
-        if ((object)placement != null)
+        if (placement is { X: { } x, Y: { } y } && window.Screens is { } screens)
         {
-            int? x = placement.X;
-            if (x.HasValue)
+            PixelPoint position = new(x, y);
+            double scale = screens.ScreenFromPoint(position)?.Scaling ?? 1.0;
+            PixelSize size = PixelSize.FromSize(new Size(window.Width, window.Height), scale);
+            if (IsVisible(position, size, screens.All.Select(s => s.WorkingArea)))
             {
-                int valueOrDefault = x.GetValueOrDefault();
-                int? y = placement.Y;
-                if (y.HasValue)
-                {
-                    int valueOrDefault2 = y.GetValueOrDefault();
-                    Screens screens = window.Screens;
-                    if (screens != null)
-                    {
-                        double scale = screens.ScreenFromPoint(new PixelPoint(valueOrDefault, valueOrDefault2))?.Scaling ?? 1.0;
-                        PixelSize size = PixelSize.FromSize(new Size(window.Width, window.Height), scale);
-                        if (IsVisible(new PixelPoint(valueOrDefault, valueOrDefault2), size, screens.All.Select((Screen s) => s.WorkingArea)))
-                        {
-                            window.WindowStartupLocation = WindowStartupLocation.Manual;
-                            window.Position = new PixelPoint(valueOrDefault, valueOrDefault2);
-                        }
-                    }
-                }
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Position = position;
             }
         }
-        WindowState state = placement.State;
-        if ((uint)(state - 2) <= 1u)
+        if (placement.State is WindowState.Maximized or WindowState.FullScreen)
         {
             window.WindowState = placement.State;
         }
@@ -210,11 +194,11 @@ public static class WindowMemory
     /// <summary>Whether enough of a window's title bar would be on one of the screens for the user to grab it.</summary>
     internal static bool IsVisible(PixelPoint position, PixelSize size, IEnumerable<PixelRect> workingAreas)
     {
-        PixelRect rect = new PixelRect(position, new PixelSize(Math.Max(size.Width, 1), Math.Min(Math.Max(size.Height, 1), 40)));
+        PixelRect titleBar = new(position, new PixelSize(Math.Max(size.Width, 1), Math.Min(Math.Max(size.Height, 1), MinVisibleHeight)));
         foreach (PixelRect workingArea in workingAreas)
         {
-            PixelRect pixelRect = workingArea.Intersect(rect);
-            if (pixelRect.Width >= Math.Min(100, rect.Width) && pixelRect.Height >= Math.Min(20, rect.Height))
+            PixelRect visible = workingArea.Intersect(titleBar);
+            if (visible.Width >= Math.Min(MinVisibleWidth, titleBar.Width) && visible.Height >= Math.Min(20, titleBar.Height))
             {
                 return true;
             }

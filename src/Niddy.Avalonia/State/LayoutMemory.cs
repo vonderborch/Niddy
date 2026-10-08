@@ -38,19 +38,27 @@ public static class LayoutMemory
             control.GetValue(RegistrationProperty)?.Dispose();
             control.SetValue(RegistrationProperty, null);
             if (e.NewValue is not string { Length: > 0 } key)
+            {
                 return;
+            }
 
             // Children and definitions may not exist yet while AXAML is loading.
             if (control.IsLoaded)
+            {
                 control.SetValue(RegistrationProperty, Attach(control, key));
+            }
             else
+            {
                 control.Loaded += OnLoaded;
+            }
 
             void OnLoaded(object? sender, global::Avalonia.Interactivity.RoutedEventArgs args)
             {
                 control.Loaded -= OnLoaded;
                 if (GetKey(control) == key)
+                {
                     control.SetValue(RegistrationProperty, Attach(control, key));
+                }
             }
         });
     }
@@ -82,12 +90,12 @@ public static class LayoutMemory
 
     private static IDisposable AttachGrid(Grid grid, string key, UiStateStore store)
     {
-        var columnsKey = key + "/columns";
-        var rowsKey = key + "/rows";
+        string columnsKey = key + "/columns";
+        string rowsKey = key + "/rows";
         Restore(store.GetLayout(columnsKey), grid.ColumnDefinitions, ColumnDefinition.WidthProperty);
         Restore(store.GetLayout(rowsKey), grid.RowDefinitions, RowDefinition.HeightProperty);
 
-        var subscriptions = new Subscriptions();
+        Subscriptions subscriptions = new();
         Watch(grid.ColumnDefinitions, ColumnDefinition.WidthProperty, columnsKey);
         Watch(grid.RowDefinitions, RowDefinition.HeightProperty, rowsKey);
         return subscriptions;
@@ -95,19 +103,27 @@ public static class LayoutMemory
         void Watch<T>(IList<T> definitions, StyledProperty<GridLength> property, string layoutKey) where T : DefinitionBase
         {
             if (definitions.Count == 0)
+            {
                 return;
-            foreach (var definition in definitions)
+            }
+
+            foreach (T definition in definitions)
+            {
                 subscriptions.Add(definition, property, () =>
                     store.SetLayout(layoutKey, definitions.Select(d => d.GetValue(property).ToString()).ToArray()));
+            }
         }
     }
 
     private static void Restore<T>(IReadOnlyList<string>? saved, IList<T> definitions, StyledProperty<GridLength> property) where T : DefinitionBase
     {
         if (saved is null || saved.Count != definitions.Count)
+        {
             return;
-        var lengths = new GridLength[saved.Count];
-        for (var i = 0; i < saved.Count; i++)
+        }
+
+        GridLength[] lengths = new GridLength[saved.Count];
+        for (int i = 0; i < saved.Count; i++)
         {
             try
             {
@@ -118,29 +134,40 @@ public static class LayoutMemory
                 return;
             }
         }
-        for (var i = 0; i < lengths.Length; i++)
+        for (int i = 0; i < lengths.Length; i++)
+        {
             definitions[i].SetValue(property, lengths[i]);
+        }
     }
 
     private static IDisposable AttachPanel(ProportionalStackPanel panel, string key, UiStateStore store)
     {
-        var panes = panel.Children.Where(c => c is not ProportionalStackPanelSplitter).ToList();
+        List<Control> panes = panel.Children.Where(c => c is not ProportionalStackPanelSplitter).ToList();
         if (store.GetLayout(key) is { } saved && saved.Count == panes.Count)
         {
-            var proportions = saved.Select(s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : double.NaN).ToArray();
+            double[] proportions = saved.Select(s => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : double.NaN).ToArray();
             if (proportions.All(p => double.IsFinite(p) && p >= 0))
-                for (var i = 0; i < panes.Count; i++)
+            {
+                for (int i = 0; i < panes.Count; i++)
+                {
                     ProportionalStackPanel.SetProportion(panes[i], proportions[i]);
+                }
+            }
         }
 
-        var subscriptions = new Subscriptions();
-        foreach (var pane in panes)
+        Subscriptions subscriptions = new();
+        foreach (Control pane in panes)
+        {
             subscriptions.Add(pane, ProportionalStackPanel.ProportionProperty, () =>
             {
-                var proportions = panes.Select(ProportionalStackPanel.GetProportion).ToArray();
+                double[] proportions = panes.Select(ProportionalStackPanel.GetProportion).ToArray();
                 if (proportions.All(double.IsFinite))
+                {
                     store.SetLayout(key, proportions.Select(p => p.ToString("R", CultureInfo.InvariantCulture)).ToArray());
+                }
             });
+        }
+
         return subscriptions;
     }
 
@@ -153,7 +180,9 @@ public static class LayoutMemory
             void Handler(object? sender, AvaloniaPropertyChangedEventArgs e)
             {
                 if (e.Property == property)
+                {
                     changed();
+                }
             }
 
             target.PropertyChanged += Handler;
@@ -162,8 +191,11 @@ public static class LayoutMemory
 
         public void Dispose()
         {
-            foreach (var unsubscribe in _unsubscribe)
+            foreach (Action unsubscribe in _unsubscribe)
+            {
                 unsubscribe();
+            }
+
             _unsubscribe.Clear();
         }
     }

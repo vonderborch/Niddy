@@ -1,14 +1,14 @@
 # OAuth sign-in
 
-Signing in with an OAuth provider inside the app, then keeping the token safe. It uses [Dialog.Web](../Niddy.Avalonia/Dialogs/Dialog.md), [ISecureStorage](../Niddy.Core/Security/ISecureStorage.md), [SecureStorageFactory](../Niddy.Core/Security/SecureStorageFactory.md), [Toast](../Niddy.Avalonia/Toast/Toast.md) and [DataContextBase](../Niddy.Avalonia/DataContexts/DataContextBase.md).
+Signing in with an OAuth provider inside the app, then keeping the token safe. It uses [Dialog.Web](../Niddy.Avalonia/Dialogs/Dialog.md), [ISecureStorage](../Niddy.Core/Security/ISecureStorage.md), [SecureStorageFactory](../Niddy.Core/Security/SecureStorageFactory.md), [Toast](../Niddy.Avalonia/Toasts/Toast.md) and [DataContextBase](../Niddy.Avalonia/DataContexts/DataContextBase.md).
 
 `Dialog.Web` shows the provider's page in the platform web view. Its `closeWhen` callback sees every navigation. When the provider redirects to your callback URL, the dialog cancels that navigation, closes, and returns the URL with the code in it.
 
 ```csharp
 using System.Web;
 using Niddy.Avalonia.Dialogs;
-using Niddy.Avalonia.Toast;
-using Niddy.Security;
+using Niddy.Avalonia.Toasts;
+using Niddy.Core.Security;
 
 public sealed class GitHubSignIn(ISecureStorage secrets, HttpClient http)
 {
@@ -19,8 +19,8 @@ public sealed class GitHubSignIn(ISecureStorage secrets, HttpClient http)
 
     public async Task<bool> SignInAsync(Control parent)
     {
-        var state = Guid.NewGuid().ToString("N");
-        var authorize = new Uri(
+        string state = Guid.NewGuid().ToString("N");
+        Uri authorize = new(
             $"https://github.com/login/oauth/authorize?client_id={ClientId}" +
             $"&redirect_uri={Uri.EscapeDataString(Callback)}&scope=repo&state={state}");
 
@@ -33,11 +33,11 @@ public sealed class GitHubSignIn(ISecureStorage secrets, HttpClient http)
         if (result is null || !result.AbsoluteUri.StartsWith(Callback, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        var query = HttpUtility.ParseQueryString(result.Query);
+        NameValueCollection query = HttpUtility.ParseQueryString(result.Query);
         if (query["state"] != state || query["code"] is not { } code)
             return false;
 
-        var token = await ExchangeCodeAsync(code);           // your back end or the provider's token endpoint
+        string token = await ExchangeCodeAsync(code);           // your back end or the provider's token endpoint
         secrets.SetToken("github-token", token);
         return true;
     }
@@ -65,7 +65,7 @@ Create the storage once, e.g. in the app data context: `SecureStorageFactory.Cre
 ## Notes
 
 - `closeWhen` returning true **cancels** that navigation, so the callback URL never has to exist.
-- Some providers refuse to run inside embedded web views (Google does). For those, open the system browser with [`UriLauncher`](../Niddy.Avalonia/Utilities/UriLauncher.md) and receive the redirect on a loopback listener or a custom URL scheme.
+- Some providers refuse to run inside embedded web views (Google does). For those, open the system browser with [`UriLauncher`](../Niddy.Avalonia/UriLauncher.md) and receive the redirect on a loopback listener or a custom URL scheme.
 - On platforms without a web view (headless, Linux without WebKitGTK), the dialog shows a message and the address instead of failing. The user can only close it, so the callback check above returns false.
 - Use PKCE (`code_challenge`) for public clients where the provider supports it.
 

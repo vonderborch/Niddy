@@ -4,6 +4,8 @@
 
 A ready-made navigation menu. It lists registered pages with their icons, navigates the `Target` page view when one is picked, and keeps the current page highlighted. Give it the page view as its `Content`, and it arranges itself around it: a sidebar, a tab strip, a phone navigation bar or a menu button. It switches to a narrow style in mobile mode or narrow windows.
 
+Items are listed in [`PageRegistry.Sort`](PageRegistry.md#ordering) order: alphabetically by sort key (the display name unless overridden) by default. The menu rebuilds when the sort changes.
+
 ## Styles and placement
 
 `Style` is how the menu looks. `Placement` (any of the eight [`ScreenPlacement`](../ScreenPlacement.md) values, default `TopLeft`) is where it goes. Each style reads the placement as the nearest one that fits:

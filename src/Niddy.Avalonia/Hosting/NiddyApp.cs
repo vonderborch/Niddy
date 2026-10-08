@@ -7,8 +7,11 @@ using System.Reflection;
 using Niddy.Avalonia.Dialogs;
 using Niddy.Avalonia.State;
 using Niddy.Avalonia.Theme;
-using Niddy.IO;
+using Niddy.Core.IO;
+using Niddy.Core.SystemInfo;
 using AvaloniaApplication = Avalonia.Application;
+using Niddy.Avalonia.PageSystem;
+using Niddy.Avalonia.Toasts;
 
 namespace Niddy.Avalonia.Hosting;
 
@@ -46,6 +49,8 @@ public abstract class NiddyApp : AvaloniaApplication
 
     internal AppShell? ShellOrNull => _shell;
 
+    internal NiddyAppOptions? OptionsOrNull => _options;
+
     /// <summary>
     ///     The app's data, config, cache and log folders for <see cref="NiddyAppOptions.AppName"/> on this platform.
     ///     Not created until you call <see cref="AppPaths.EnsureCreated"/>.
@@ -72,22 +77,33 @@ public abstract class NiddyApp : AvaloniaApplication
     public override void Initialize()
     {
         base.Initialize();
-        var options = new NiddyAppOptions();
+        NiddyAppOptions options = new();
         Configure(options);
         if (options.StartingPage is null)
+        {
             throw new InvalidOperationException($"{nameof(NiddyAppOptions)}.{nameof(NiddyAppOptions.StartingPage)} must be set in {nameof(Configure)}.");
+        }
+
         _options = options;
 
         if (options.UseFluentTheme)
+        {
             Styles.AddRange(CreateFluentStyles());
+        }
 
         if (options.Theme is { } theme)
+        {
             RequestedThemeVariant = theme == AppTheme.Dark ? ThemeVariant.Dark : ThemeVariant.Light;
+        }
 
-        Toast.Toast.DefaultDuration = options.ToastDuration;
+        Toast.DefaultDuration = options.ToastDuration;
+        PageRegistry.Sort = options.PageSort ?? PageRegistry.Alphabetical;
+        PageRegistry.SortDescending = options.PageSortDescending;
 
         if (options.RememberWindowState && UiStateStore.Default is null)
+        {
             UiStateStore.Default = UiStateStore.For(Paths);
+        }
 
         if (options.HandleUnhandledExceptions)
         {
@@ -98,7 +114,9 @@ public abstract class NiddyApp : AvaloniaApplication
                 ReportIssueLink = options.ReportIssueLink,
             });
             if (options.OnUnhandledException is { } callback)
+            {
                 GlobalExceptionHandler.ExceptionOccurred += (_, e) => callback(e);
+            }
         }
     }
 
@@ -107,9 +125,11 @@ public abstract class NiddyApp : AvaloniaApplication
     {
         // Initialize is skipped if a subclass overrides it without calling the base method.
         if (_options is null)
+        {
             throw new InvalidOperationException($"Call base.{nameof(Initialize)}() when overriding {nameof(NiddyApp)}.{nameof(Initialize)}.");
+        }
 
-        var mode = ResolveMode(_options.Mode, ApplicationLifetime);
+        AppMode mode = ResolveMode(_options.Mode, ApplicationLifetime);
 
         // The shell always has an overlay host, so Auto would always pick overlays; desktop mode prefers windows.
         Dialog.DefaultMode = _options.DialogMode == DialogDisplayMode.Auto
@@ -136,8 +156,8 @@ public abstract class NiddyApp : AvaloniaApplication
     /// </summary>
     protected virtual Window CreateMainWindow(AppShell shell)
     {
-        var mobile = shell.Mode == AppMode.Mobile;
-        var window = new Window
+        bool mobile = shell.Mode == AppMode.Mobile;
+        Window window = new()
         {
             Title = Options.Title,
             Width = mobile ? Options.MobilePreviewWidth : Options.Width,
@@ -149,7 +169,10 @@ public abstract class NiddyApp : AvaloniaApplication
         };
         // In the mobile preview the phone-sized window shouldn't take the desktop window's saved size.
         if (Options.RememberWindowState && !mobile)
+        {
             WindowMemory.SetKey(window, "Main");
+        }
+
         Options.ConfigureWindow?.Invoke(window);
         return window;
     }
@@ -165,9 +188,11 @@ public abstract class NiddyApp : AvaloniaApplication
         not AppMode.Auto => requested,
         _ when lifetime is IClassicDesktopStyleApplicationLifetime => AppMode.Desktop,
         _ when lifetime is ISingleViewApplicationLifetime => AppMode.Mobile,
-        _ when OperatingSystem.IsAndroid() || OperatingSystem.IsIOS() || OperatingSystem.IsBrowser() => AppMode.Mobile,
+        _ when IsMobile(Platform.Info.OS) => AppMode.Mobile,
         _ => AppMode.Desktop,
     };
+
+    internal static bool IsMobile(OS os) => os is OS.Android or OS.iOS or OS.iPadOS or OS.Browser;
 
     internal static IStyle[] CreateFluentStyles() =>
     [

@@ -33,7 +33,7 @@ The app name for `Paths` is `AppName`, else `Title`, else the entry assembly's n
 
 | Value | Meaning |
 |---|---|
-| `Auto` (default) | `Mobile` for a single-view lifetime or on Android, iOS and the browser; `Desktop` for a desktop lifetime. |
+| `Auto` (default) | `Desktop` for a desktop lifetime, `Mobile` for a single-view lifetime. With neither, `Mobile` on Android, iOS, iPadOS and the browser (from [`Platform.Info`](../../Niddy.Core/SystemInfo/Platform.md)), `Desktop` elsewhere. |
 | `Desktop` | A resizable main window, dialogs in windows, toasts bottom-right (bottom-center when narrow). |
 | `Mobile` | Full-screen view, overlay dialogs, toasts bottom-center. On desktop it gives a phone-sized window (`MobilePreviewWidth` × `MobilePreviewHeight`) to preview the mobile layout. |
 
@@ -46,7 +46,8 @@ using Avalonia;
 using Avalonia.Animation;
 using Niddy.Avalonia.Hosting;
 using Niddy.Avalonia.PageSystem;
-using Niddy.Logging;
+using Niddy.Core.IO;
+using Niddy.Core.Logging;
 
 public class App : NiddyApp
 {
@@ -83,7 +84,7 @@ A custom main window:
 ```csharp
 protected override Window CreateMainWindow(AppShell shell)
 {
-    var window = base.CreateMainWindow(shell);
+    Window window = base.CreateMainWindow(shell);
     window.Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://MyApp/Assets/icon.ico")));
     return window;
 }

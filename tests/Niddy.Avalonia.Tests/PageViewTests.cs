@@ -11,8 +11,8 @@ public class PageViewTests
 {
     private static (PageView View, TestAppDataContext App) Show(Type? startingPage = null)
     {
-        var app = new TestAppDataContext();
-        var view = new PageView { StartingPage = startingPage ?? typeof(HomePage), AppDataContext = app };
+        TestAppDataContext app = new();
+        PageView view = new() { StartingPage = startingPage ?? typeof(HomePage), AppDataContext = app };
         new Window { Content = view }.Show();
         return (view, app);
     }
@@ -24,9 +24,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void PagesGetTheAppPageControlAndTheirOwnDataContexts()
     {
-        var (view, app) = Show();
+        (PageView view, TestAppDataContext app) = Show();
 
-        var home = Assert.IsType<HomePage>(Shown(view));
+        HomePage home = Assert.IsType<HomePage>(Shown(view));
         Assert.Same(app, home.AppDataContext);
         Assert.Same(view.PageControlDataContext, home.PageControlDataContext);
         Assert.Same(home.PageDataContext, home.DataContext);
@@ -37,7 +37,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void PlainPagesGetTheAppDataContextAsTheirDataContext()
     {
-        var (view, app) = Show(typeof(PlainPage));
+        (PageView view, TestAppDataContext app) = Show(typeof(PlainPage));
 
         Assert.Same(app, Assert.IsType<PlainPage>(Shown(view)).DataContext);
     }
@@ -45,19 +45,19 @@ public class PageViewTests
     [AvaloniaFact]
     public void AxamlPagesBindToTheirPageDataContext()
     {
-        var (view, _) = Show(typeof(XamlPage));
+        (PageView view, _) = Show(typeof(XamlPage));
 
-        var page = Assert.IsType<XamlPage>(Shown(view));
+        XamlPage page = Assert.IsType<XamlPage>(Shown(view));
         Assert.Equal("from xaml", page.FindControl<TextBlock>("Label")!.Text);
     }
 
     [AvaloniaFact]
     public void TypedPageWithoutAnAppDataContextExplainsWhatIsMissing()
     {
-        var view = new PageView();
+        PageView view = new();
         new Window { Content = view }.Show();
 
-        var error = Assert.Throws<InvalidOperationException>(() => view.NavigateTo<DetailsPage>());
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => view.NavigateTo<DetailsPage>());
 
         Assert.Contains(nameof(TestAppDataContext), error.Message);
         Assert.Null(view.PageControlDataContext.ActivePage);
@@ -66,7 +66,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void DataContextsThrowBeforeThePageIsShown()
     {
-        var page = new DetailsPage();
+        DetailsPage page = new();
 
         Assert.Throws<InvalidOperationException>(() => page.AppDataContext);
         Assert.Throws<InvalidOperationException>(() => page.PageDataContext);
@@ -78,11 +78,11 @@ public class PageViewTests
     [AvaloniaFact]
     public void GoBackRestoresTheSameInstance()
     {
-        var (view, _) = Show();
-        var home = (HomePage)Shown(view)!;
+        (PageView view, _) = Show();
+        HomePage home = (HomePage)Shown(view)!;
 
         Assert.True(view.NavigateTo<DetailsPage>());
-        var details = Assert.IsType<DetailsPage>(Shown(view));
+        DetailsPage details = Assert.IsType<DetailsPage>(Shown(view));
         Assert.True(view.CanGoBack);
 
         Assert.True(view.GoBack());
@@ -97,8 +97,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigatingWithoutBackStackClosesThePreviousPage()
     {
-        var (view, _) = Show();
-        var home = (HomePage)Shown(view)!;
+        (PageView view, _) = Show();
+        HomePage home = (HomePage)Shown(view)!;
 
         view.NavigateTo(DetailsPage.PageId, addToBackStack: false);
 
@@ -110,8 +110,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigatingToTheCurrentPageDoesNothingUnlessThereIsAParameter()
     {
-        var (view, _) = Show();
-        var home = Shown(view);
+        (PageView view, _) = Show();
+        Control? home = Shown(view);
 
         Assert.False(view.NavigateTo<HomePage>());
         Assert.Same(home, Shown(view));
@@ -123,11 +123,11 @@ public class PageViewTests
     [AvaloniaFact]
     public void ParametersReachTheNewPage()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
 
         view.NavigateTo(DetailsPage.PageId, parameter: "item-7");
 
-        var details = (DetailsPage)Shown(view)!;
+        DetailsPage details = (DetailsPage)Shown(view)!;
         Assert.Equal("item-7", details.LastNavigatedTo!.Parameter);
         Assert.Equal(HomePage.PageId, details.LastNavigatedTo.From!.PageId);
         Assert.Equal(NavigationMode.Forward, details.LastNavigatedTo.Mode);
@@ -136,7 +136,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void UnknownPageIdThrows()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => view.NavigateTo<PushedPage>());
     }
@@ -144,8 +144,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void BackStackIsTrimmedToItsMaximumDepth()
     {
-        var (view, _) = Show();
-        var home = (HomePage)Shown(view)!;
+        (PageView view, _) = Show();
+        HomePage home = (HomePage)Shown(view)!;
         view.PageControlDataContext.MaxBackStackDepth = 1;
 
         view.NavigateTo<DetailsPage>();
@@ -160,7 +160,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void ChangingTheStartingPageResetsTheView()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<DetailsPage>();
 
         view.StartingPage = typeof(GuardedPage);
@@ -172,8 +172,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigatedEventReportsEachNavigation()
     {
-        var (view, _) = Show();
-        var events = new List<PageNavigationEventArgs>();
+        (PageView view, _) = Show();
+        List<PageNavigationEventArgs> events = new();
         view.Navigated += (_, e) => events.Add(e);
 
         view.NavigateTo<DetailsPage>();
@@ -188,12 +188,14 @@ public class PageViewTests
     [AvaloniaFact]
     public void PropertiesChangeAfterTheNewPageIsShown()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         Control? shownWhenChanged = null;
         view.PageControlDataContext.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PageControlDataContext.CurrentPageId))
+            {
                 shownWhenChanged = Shown(view);
+            }
         };
 
         view.NavigateTo<DetailsPage>();
@@ -207,10 +209,10 @@ public class PageViewTests
     [AvaloniaFact]
     public void PushedPagesHaveNoIdAndCanBeLeftForThePreviousPage()
     {
-        var (view, app) = Show();
+        (PageView view, TestAppDataContext app) = Show();
 
         Assert.True(view.Push(new PushedPage("One-off")));
-        var pushed = Assert.IsType<PushedPage>(Shown(view));
+        PushedPage pushed = Assert.IsType<PushedPage>(Shown(view));
         Assert.Null(view.PageControlDataContext.CurrentPageId);
         Assert.Null(pushed.Registration);
         Assert.Same(app, pushed.AppDataContext);
@@ -224,9 +226,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void LockBlocksEveryNavigation()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<DetailsPage>();
-        var details = Shown(view);
+        Control? details = Shown(view);
         view.PageControlDataContext.LockToCurrentPage = true;
 
         Assert.False(view.NavigateTo<GuardedPage>());
@@ -238,9 +240,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void PageCanCancelLeavingAndContinueLater()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<GuardedPage>();
-        var guarded = (GuardedPage)Shown(view)!;
+        GuardedPage guarded = (GuardedPage)Shown(view)!;
         guarded.Block = true;
 
         Assert.False(view.NavigateTo(DetailsPage.PageId, parameter: "later"));
@@ -255,12 +257,12 @@ public class PageViewTests
     [AvaloniaFact]
     public void ContinuingAfterNavigatingElsewhereDoesNothing()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<GuardedPage>();
-        var guarded = (GuardedPage)Shown(view)!;
+        GuardedPage guarded = (GuardedPage)Shown(view)!;
         guarded.Block = true;
         view.NavigateTo<DetailsPage>();
-        var refused = guarded.Refused!;
+        PageNavigatingFromEventArgs refused = guarded.Refused!;
 
         guarded.Block = false;
         view.GoBack();
@@ -274,10 +276,10 @@ public class PageViewTests
     [AvaloniaFact]
     public void KeptAlivePagesAreReusedAndNeverClosed()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
 
         view.NavigateTo(SettingsPage.PageId, addToBackStack: false);
-        var settings = (SettingsPage)Shown(view)!;
+        SettingsPage settings = (SettingsPage)Shown(view)!;
         view.NavigateTo(HomePage.PageId, addToBackStack: false);
         view.NavigateTo(SettingsPage.PageId, addToBackStack: false);
 
@@ -289,18 +291,18 @@ public class PageViewTests
     [AvaloniaFact]
     public void NestedPageViewShowsTheChildPagesOfItsPage()
     {
-        var (view, app) = Show();
+        (PageView view, TestAppDataContext app) = Show();
 
         view.NavigateTo<SettingsPage>();
-        var settings = (SettingsPage)Shown(view)!;
-        var children = settings.Children;
+        SettingsPage settings = (SettingsPage)Shown(view)!;
+        PageView children = settings.Children;
 
         Assert.Equal(SettingsPage.PageId, children.PageControlDataContext.ParentPage);
         Assert.Equal(
-            [typeof(GeneralSettingsPage), typeof(AdvancedSettingsPage), typeof(AboutPage)],
+            [typeof(AboutPage), typeof(AdvancedSettingsPage), typeof(GeneralSettingsPage)],
             children.PageControlDataContext.AvailablePages.Select(p => p.PageType)
         );
-        var general = Assert.IsType<GeneralSettingsPage>(Shown(children));
+        GeneralSettingsPage general = Assert.IsType<GeneralSettingsPage>(Shown(children));
         Assert.Same(app, general.AppDataContext);
 
         children.NavigateTo<AdvancedSettingsPage>();
@@ -311,8 +313,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void PageViewInAPageWithoutChildPagesShowsTopLevelPages()
     {
-        var (view, _) = Show(typeof(PlainPage));
-        var nested = new PageView { StartingPage = HomePage.PageId };
+        (PageView view, _) = Show(typeof(PlainPage));
+        PageView nested = new() { StartingPage = HomePage.PageId };
 
         ((PlainPage)Shown(view)!).Content = nested;
 
@@ -325,8 +327,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigateToChildDrillsDownAndNavigateToParentComesBack()
     {
-        var (view, _) = Show();
-        var pages = view.PageControlDataContext;
+        (PageView view, _) = Show();
+        PageControlDataContext pages = view.PageControlDataContext;
 
         Assert.True(pages.NavigateToChild<ItemPage>());
         Assert.IsType<ItemPage>(Shown(view));
@@ -339,8 +341,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigateToParentReturnsToTheParentThePageWasReachedFrom()
     {
-        var (view, _) = Show(typeof(DetailsPage));
-        var pages = view.PageControlDataContext;
+        (PageView view, _) = Show(typeof(DetailsPage));
+        PageControlDataContext pages = view.PageControlDataContext;
 
         pages.NavigateToChild<ItemPage>();
         Assert.True(pages.NavigateToParent());
@@ -355,9 +357,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigateToChildUsesThePagesOwnPageView()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<SettingsPage>();
-        var settings = (SettingsPage)Shown(view)!;
+        SettingsPage settings = (SettingsPage)Shown(view)!;
 
         Assert.True(view.PageControlDataContext.NavigateToChild<AdvancedSettingsPage>());
 
@@ -370,9 +372,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigateToChildThrowsForPagesThatArentChildren()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
 
-        var error = Assert.Throws<InvalidOperationException>(() => view.PageControlDataContext.NavigateToChild<GeneralSettingsPage>());
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => view.PageControlDataContext.NavigateToChild<GeneralSettingsPage>());
 
         Assert.Contains("Home page", error.Message);
         Assert.IsType<HomePage>(Shown(view));
@@ -381,9 +383,9 @@ public class PageViewTests
     [AvaloniaFact]
     public void NavigateToSiblingMovesBetweenPagesWithTheSameParent()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         view.NavigateTo<SettingsPage>();
-        var children = ((SettingsPage)Shown(view)!).Children;
+        PageView children = ((SettingsPage)Shown(view)!).Children;
 
         Assert.True(children.PageControlDataContext.NavigateToSibling<AboutPage>());
         Assert.IsType<AboutPage>(Shown(children));
@@ -393,7 +395,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void TopLevelPagesAreSiblings()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
 
         Assert.True(view.PageControlDataContext.NavigateToSibling<AboutPage>());
         Assert.IsType<AboutPage>(Shown(view));
@@ -419,13 +421,13 @@ public class PageViewTests
     public void RegistryCombinesParentsAndChildrenFromBothEnds()
     {
         Assert.Equal(
-            [typeof(GeneralSettingsPage), typeof(AdvancedSettingsPage), typeof(AboutPage)],
+            [typeof(AboutPage), typeof(AdvancedSettingsPage), typeof(GeneralSettingsPage)],
             PageRegistry.GetPages(SettingsPage.PageId).Select(p => p.PageType)
         );
         Assert.Equal([typeof(ItemPage)], PageRegistry.GetPages(HomePage.PageId).Select(p => p.PageType));
         Assert.Equal([typeof(ItemPage)], PageRegistry.GetPages(DetailsPage.PageId).Select(p => p.PageType));
 
-        var item = PageRegistry.Find<ItemPage>()!;
+        PageRegistration item = PageRegistry.Find<ItemPage>()!;
         Assert.Equal([typeof(DetailsPage), typeof(HomePage)], item.Parents.Select(p => p.PageType));
         Assert.Equal([typeof(SettingsPage)], PageRegistry.Find<AdvancedSettingsPage>()!.Parents.Select(p => p.PageType));
         Assert.Empty(item.Children);
@@ -439,12 +441,13 @@ public class PageViewTests
         Assert.True(AboutPage.PageId.Registration!.IsTopLevel);
         Assert.False(PlainPage.PageId.Registration!.IsTopLevel);
 
-        var topLevel = PageRegistry.GetPages().Select(p => p.PageType).ToList();
+        List<Type> topLevel = PageRegistry.GetPages().Select(p => p.PageType).ToList();
         Assert.Contains(typeof(HomePage), topLevel);
         Assert.Contains(typeof(AboutPage), topLevel);
         Assert.DoesNotContain(typeof(ItemPage), topLevel);
         Assert.DoesNotContain(typeof(PlainPage), topLevel);
-        Assert.True(topLevel.IndexOf(typeof(HomePage)) < topLevel.IndexOf(typeof(DetailsPage)));
+        // Alphabetical by display name: "Details" before "Home page".
+        Assert.True(topLevel.IndexOf(typeof(DetailsPage)) < topLevel.IndexOf(typeof(HomePage)));
     }
 
     [AvaloniaFact]
@@ -458,8 +461,8 @@ public class PageViewTests
     [AvaloniaFact]
     public void PagesCanBeRegisteredExplicitly()
     {
-        var registration = PageRegistry.Register<ManualPage>(displayName: "Manual page", parents: [typeof(GuardedPage)]);
-        var (view, _) = Show(typeof(GuardedPage));
+        PageRegistration registration = PageRegistry.Register<ManualPage>(displayName: "Manual page", parents: [typeof(GuardedPage)]);
+        (PageView view, _) = Show(typeof(GuardedPage));
 
         Assert.Same(registration, PageRegistry.Register<ManualPage>(displayName: "Manual page", parents: [typeof(GuardedPage)]));
         Assert.Equal([registration], PageRegistry.GetPages(GuardedPage.PageId));
@@ -471,7 +474,7 @@ public class PageViewTests
     public void PagesCanBeRegisteredWithAFactory()
     {
         PageRegistry.Register(() => new FactoryPage("From factory"));
-        var (view, _) = Show(typeof(FactoryPage));
+        (PageView view, _) = Show(typeof(FactoryPage));
 
         Assert.Equal("From factory", Assert.IsType<FactoryPage>(Shown(view)).Title);
     }
@@ -479,7 +482,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void RegisteringAPageAgainWithDifferentSettingsThrows()
     {
-        var error = Assert.Throws<InvalidOperationException>(() => PageRegistry.Register<HomePage>(keepAlive: true));
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => PageRegistry.Register<HomePage>(keepAlive: true));
 
         Assert.Contains(nameof(HomePage), error.Message);
         Assert.False(PageRegistry.Find<HomePage>()!.KeepAlive);
@@ -488,7 +491,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void RegisteringACycleThrowsAndLeavesThePageUnregistered()
     {
-        var error = Assert.Throws<InvalidOperationException>(
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => PageRegistry.Register<CyclePage>(parents: [typeof(ItemPage)], children: [typeof(HomePage)])
         );
 
@@ -506,7 +509,7 @@ public class PageViewTests
     [AvaloniaFact]
     public void PagesInReferencedProjectsAreRegistered()
     {
-        var registration = PageRegistry.Find<ExternalPage>();
+        PageRegistration? registration = PageRegistry.Find<ExternalPage>();
 
         Assert.NotNull(registration);
         Assert.Equal("External page", registration.DisplayName);
@@ -515,15 +518,15 @@ public class PageViewTests
     [AvaloniaFact]
     public void PagesInAssembliesLoadedAtRuntimeAreRegisteredWhenTheyLoad()
     {
-        var (view, _) = Show();
+        (PageView view, _) = Show();
         Assert.DoesNotContain(PageRegistry.GetAllPages(), p => p.PageType.Name == "PluginPage");
 
-        var path = typeof(PageViewTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+        string path = typeof(PageViewTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .Single(a => a.Key == "PluginPagesPath").Value!;
-        var assembly = Assembly.LoadFrom(Path.GetFullPath(path));
+        Assembly assembly = Assembly.LoadFrom(Path.GetFullPath(path));
         Dispatcher.UIThread.RunJobs();
 
-        var pluginPage = PageId.Of(assembly.GetType("Niddy.TestFixtures.PluginPages.PluginPage")!);
+        PageId pluginPage = PageId.Of(assembly.GetType("Niddy.TestFixtures.PluginPages.PluginPage")!);
         Assert.NotNull(PageRegistry.Find(pluginPage));
         Assert.Contains(pluginPage, view.PageControlDataContext.AvailablePages.Select(p => p.PageId));
         Assert.True(view.NavigateTo(pluginPage));

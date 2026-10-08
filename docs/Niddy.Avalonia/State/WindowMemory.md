@@ -21,7 +21,7 @@ Remembers a window's size, position and maximized or full-screen state, and rest
 ```
 
 ```csharp
-var window = new LogViewerWindow();
+LogViewerWindow window = new();
 WindowMemory.Attach(window, "LogViewer");
 window.Show();
 ```

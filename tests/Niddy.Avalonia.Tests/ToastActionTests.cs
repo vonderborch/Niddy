@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using Niddy.Avalonia.Toast;
+using Niddy.Avalonia.Toasts;
 
 namespace Niddy.Avalonia.Tests;
 
@@ -10,8 +10,8 @@ public class ToastActionTests
 {
     private static (ToastHost Host, Border Inner) Show()
     {
-        var inner = new Border();
-        var host = new ToastHost { Content = inner };
+        Border inner = new();
+        ToastHost host = new() { Content = inner };
         new Window { Width = 800, Height = 600, Content = host }.Show();
         Dispatcher.UIThread.RunJobs();
         return (host, inner);
@@ -20,13 +20,13 @@ public class ToastActionTests
     [AvaloniaFact]
     public void ActionButtonRunsTheActionAndDismisses()
     {
-        var (host, inner) = Show();
-        var undone = 0;
+        (ToastHost host, Border inner) = Show();
+        int undone = 0;
 
-        var handle = Toast.Toast.Show(inner, "Deleted", actionText: "Undo", action: () => undone++);
-        var item = Assert.Single(host.Toasts);
+        ToastHandle handle = Toast.Show(inner, "Deleted", actionText: "Undo", action: () => undone++);
+        ToastItem item = Assert.Single(host.Toasts);
         Assert.Equal("Undo", item.ActionText);
-        Assert.Equal(Toast.Toast.DefaultActionDuration, item.Duration);
+        Assert.Equal(Toast.DefaultActionDuration, item.Duration);
 
         item.ActionButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -39,11 +39,11 @@ public class ToastActionTests
     [AvaloniaFact]
     public void DuplicatesAreMerged()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        var first = Toast.Toast.Show(inner, "Saved", ToastType.Success);
-        var second = Toast.Toast.Show(inner, "Saved", ToastType.Success);
-        Toast.Toast.Show(inner, "Saved", ToastType.Info);
+        ToastHandle first = Toast.Show(inner, "Saved", ToastType.Success);
+        ToastHandle second = Toast.Show(inner, "Saved", ToastType.Success);
+        Toast.Show(inner, "Saved", ToastType.Info);
 
         Assert.Same(first, second);
         Assert.Equal(2, host.Toasts.Count);
@@ -54,10 +54,10 @@ public class ToastActionTests
     [AvaloniaFact]
     public void KeysMergeDifferentMessages()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        var first = Toast.Toast.Show(inner, "Syncing 1", key: "sync");
-        var second = Toast.Toast.Show(inner, "Syncing 2", key: "sync");
+        ToastHandle first = Toast.Show(inner, "Syncing 1", key: "sync");
+        ToastHandle second = Toast.Show(inner, "Syncing 2", key: "sync");
 
         Assert.Same(first, second);
         Assert.Equal("Syncing 2", Assert.Single(host.Toasts).Message);
@@ -66,11 +66,11 @@ public class ToastActionTests
     [AvaloniaFact]
     public void MergingCanBeTurnedOff()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
         host.MergeDuplicates = false;
 
-        Toast.Toast.Show(inner, "Saved");
-        Toast.Toast.Show(inner, "Saved");
+        Toast.Show(inner, "Saved");
+        Toast.Show(inner, "Saved");
 
         Assert.Equal(2, host.Toasts.Count);
     }
@@ -78,11 +78,11 @@ public class ToastActionTests
     [AvaloniaFact]
     public void DismissedToastsAreNotMergedInto()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        var first = Toast.Toast.Show(inner, "Saved");
+        ToastHandle first = Toast.Show(inner, "Saved");
         first.Dismiss();
-        var second = Toast.Toast.Show(inner, "Saved");
+        ToastHandle second = Toast.Show(inner, "Saved");
 
         Assert.NotSame(first, second);
         Assert.Single(host.Toasts);
@@ -91,10 +91,10 @@ public class ToastActionTests
     [AvaloniaFact]
     public void ProgressToastsReportAndComplete()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        var handle = Toast.Toast.ShowProgress(inner, "Exporting…");
-        var item = Assert.Single(host.Toasts);
+        ToastHandle handle = Toast.ShowProgress(inner, "Exporting…");
+        ToastItem item = Assert.Single(host.Toasts);
         Assert.True(double.IsNaN(item.Progress!.Value));
         Assert.Equal(TimeSpan.Zero, item.Duration);
 
@@ -112,10 +112,10 @@ public class ToastActionTests
     [AvaloniaFact]
     public void ProgressToastsAreNeverMerged()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        Toast.Toast.ShowProgress(inner, "Working");
-        Toast.Toast.ShowProgress(inner, "Working");
+        Toast.ShowProgress(inner, "Working");
+        Toast.ShowProgress(inner, "Working");
 
         Assert.Equal(2, host.Toasts.Count);
     }
@@ -123,10 +123,10 @@ public class ToastActionTests
     [AvaloniaFact]
     public void ProgressCancelRunsTheCallback()
     {
-        var (host, inner) = Show();
-        var cancelled = false;
+        (ToastHost host, Border inner) = Show();
+        bool cancelled = false;
 
-        var handle = Toast.Toast.ShowProgress(inner, "Working", cancelText: "Cancel", cancel: () => cancelled = true);
+        ToastHandle handle = Toast.ShowProgress(inner, "Working", cancelText: "Cancel", cancel: () => cancelled = true);
         Assert.Single(host.Toasts).InvokeAction();
 
         Assert.True(cancelled);
@@ -136,12 +136,12 @@ public class ToastActionTests
     [AvaloniaFact]
     public void UpdateChangesTheMessageAndType()
     {
-        var (host, inner) = Show();
+        (ToastHost host, Border inner) = Show();
 
-        var handle = Toast.Toast.Show(inner, "Uploading");
+        ToastHandle handle = Toast.Show(inner, "Uploading");
         handle.Update("Upload failed", ToastType.Error);
 
-        var item = Assert.Single(host.Toasts);
+        ToastItem item = Assert.Single(host.Toasts);
         Assert.Equal("Upload failed", item.Message);
         Assert.Equal(ToastType.Error, item.Type);
     }

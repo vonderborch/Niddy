@@ -61,11 +61,11 @@ public partial class ConnectDialog : DialogBase<ServerConnection?>
     protected override void OnDismissed() => _test?.Cancel();
 
     private void Address_OnTextChanged(object? sender, TextChangedEventArgs e) =>
-        ConnectButton.IsEnabled = Uri.TryCreate(AddressBox.Text, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
+        ConnectButton.IsEnabled = Uri.TryCreate(AddressBox.Text, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https";
 
     private async void Connect_OnClick(object? sender, RoutedEventArgs e)
     {
-        var connection = new ServerConnection(new Uri(AddressBox.Text!), UserBox.Text ?? "");
+        ServerConnection connection = new(new Uri(AddressBox.Text!), UserBox.Text ?? "");
         _test = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         ConnectButton.IsEnabled = false;
         Testing.IsVisible = true;

@@ -15,7 +15,6 @@ using Avalonia.Metadata;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Niddy.Avalonia.Hosting;
-using Niddy.Avalonia.Utilities;
 using DockSide = Avalonia.Controls.Dock;
 
 namespace Niddy.Avalonia.PageSystem;
@@ -317,7 +316,9 @@ public class PageMenu : Control
                 return;
             }
             if (value is not null && !ReferenceEquals(value, field))
+            {
                 Navigate(value);
+            }
         }
     }
 
@@ -373,7 +374,10 @@ public class PageMenu : Control
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
         if (_topLevel is not null)
+        {
             _topLevel.SizeChanged += OnTopLevelSizeChanged;
+        }
+
         ApplyLayout(force: true);
     }
 
@@ -382,7 +386,10 @@ public class PageMenu : Control
     {
         base.OnDetachedFromVisualTree(e);
         if (_topLevel is not null)
+        {
             _topLevel.SizeChanged -= OnTopLevelSizeChanged;
+        }
+
         _topLevel = null;
         _flyout.Hide();
     }
@@ -394,16 +401,26 @@ public class PageMenu : Control
         if (change.Property == ContentProperty)
         {
             if (change.OldValue is Control oldContent)
+            {
                 _frame.Children.Remove(oldContent);
+            }
+
             if (change.NewValue is Control newContent)
+            {
                 _frame.Children.Add(newContent);
+            }
+
             if (((ILogical)this).IsAttachedToLogicalTree)
+            {
                 Refresh();
+            }
         }
         else if (change.Property == TargetProperty)
         {
             if (((ILogical)this).IsAttachedToLogicalTree)
+            {
                 Refresh();
+            }
         }
         else if (change.Property == ParentPageProperty)
         {
@@ -433,7 +450,7 @@ public class PageMenu : Control
     /// <summary>Rebuilds the items, e.g. after pages are registered or <see cref="ParentPage"/> changes.</summary>
     private void Refresh()
     {
-        var parent = ParentPage is { } parentPage ? PageId.Of(parentPage) : null;
+        PageId? parent = ParentPage is { } parentPage ? PageId.Of(parentPage) : null;
         _roots = Build(parent, null, []);
         WatchViews();
         Sync();
@@ -441,12 +458,15 @@ public class PageMenu : Control
 
     private IReadOnlyList<PageMenuItem> Build(PageId? parentId, PageMenuItem? parent, HashSet<PageId> path)
     {
-        var items = new List<PageMenuItem>();
-        foreach (var registration in PageRegistry.GetPages(parentId))
+        List<PageMenuItem> items = new();
+        foreach (PageRegistration registration in PageRegistry.GetPages(parentId))
         {
             if (path.Contains(registration.PageId))
+            {
                 continue;
-            var item = new PageMenuItem(registration, parent, parentId, OnExpandedChanged);
+            }
+
+            PageMenuItem item = new(registration, parent, parentId, OnExpandedChanged);
             if (Mode == PageMenuMode.Tree && item.Depth + 1 < MaxDepth)
             {
                 path.Add(registration.PageId);
@@ -461,42 +481,54 @@ public class PageMenu : Control
 
     private IEnumerable<PageMenuItem> AllItems()
     {
-        var stack = new Stack<PageMenuItem>(_roots.Reverse());
-        while (stack.TryPop(out var item))
+        Stack<PageMenuItem> stack = new(_roots.Reverse());
+        while (stack.TryPop(out PageMenuItem? item))
         {
             yield return item;
-            for (var i = item.Children.Count - 1; i >= 0; i--)
+            for (int i = item.Children.Count - 1; i >= 0; i--)
+            {
                 stack.Push(item.Children[i]);
+            }
         }
     }
 
     private void OnExpandedChanged(PageMenuItem item)
     {
         if (item.IsExpanded)
+        {
             _expanded.Add(item.Key);
+        }
         else
+        {
             _expanded.Remove(item.Key);
+        }
+
         UpdateItems();
     }
 
     /// <summary>Updates <see cref="Items"/> to the visible items, and the highlight to match.</summary>
     private void UpdateItems()
     {
-        var visible = new List<PageMenuItem>();
+        List<PageMenuItem> visible = new();
         AddVisible(_roots);
         _syncing = true;
         try
         {
             // Insert and remove rather than replace, so expanding keeps the scroll position and highlight.
-            for (var i = 0; i < visible.Count; i++)
+            for (int i = 0; i < visible.Count; i++)
             {
                 if (i < _items.Count && ReferenceEquals(_items[i], visible[i]))
+                {
                     continue;
-                var existing = IndexOf(visible[i], i + 1);
+                }
+
+                int existing = IndexOf(visible[i], i + 1);
                 if (existing > i)
                 {
-                    for (var k = existing - 1; k >= i; k--)
+                    for (int k = existing - 1; k >= i; k--)
+                    {
                         _items.RemoveAt(k);
+                    }
                 }
                 else
                 {
@@ -504,7 +536,9 @@ public class PageMenu : Control
                 }
             }
             while (_items.Count > visible.Count)
+            {
                 _items.RemoveAt(_items.Count - 1);
+            }
         }
         finally
         {
@@ -514,21 +548,25 @@ public class PageMenu : Control
 
         void AddVisible(IReadOnlyList<PageMenuItem> items)
         {
-            foreach (var item in items)
+            foreach (PageMenuItem item in items)
             {
                 visible.Add(item);
                 if (TreeShown && item.IsExpanded)
+                {
                     AddVisible(item.Children);
+                }
             }
         }
     }
 
     private int IndexOf(PageMenuItem item, int start)
     {
-        for (var i = start; i < _items.Count; i++)
+        for (int i = start; i < _items.Count; i++)
         {
             if (ReferenceEquals(_items[i], item))
+            {
                 return i;
+            }
         }
         return -1;
     }
@@ -536,9 +574,12 @@ public class PageMenu : Control
     /// <summary>Highlights the selected item, or its nearest visible ancestor.</summary>
     private void Highlight()
     {
-        var visible = SelectedItem;
+        PageMenuItem? visible = SelectedItem;
         while (visible is not null && IndexOf(visible, 0) < 0)
+        {
             visible = visible.Parent;
+        }
+
         _syncing = true;
         try
         {
@@ -554,8 +595,8 @@ public class PageMenu : Control
     private void WatchViews()
     {
         Unwatch();
-        var seen = new HashSet<PageView>();
-        for (var view = View; view is not null && seen.Count < MaxDepth && seen.Add(view); view = view.PageControlDataContext.ActivePage?.ChildView)
+        HashSet<PageView> seen = new();
+        for (PageView? view = View; view is not null && seen.Count < MaxDepth && seen.Add(view); view = view.PageControlDataContext.ActivePage?.ChildView)
         {
             view.PageControlDataContext.PropertyChanged += OnViewPropertyChanged;
             _watched.Add(view.PageControlDataContext);
@@ -564,15 +605,21 @@ public class PageMenu : Control
 
     private void Unwatch()
     {
-        foreach (var pages in _watched)
+        foreach (PageControlDataContext pages in _watched)
+        {
             pages.PropertyChanged -= OnViewPropertyChanged;
+        }
+
         _watched.Clear();
     }
 
     private void OnViewPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_navigating)
+        {
             return;
+        }
+
         if (e.PropertyName == nameof(PageControlDataContext.ActivePage))
         {
             WatchViews();
@@ -592,14 +639,19 @@ public class PageMenu : Control
     private void Sync()
     {
         if (_navigating)
+        {
             return;
-        var item = FindCurrentItem();
+        }
+
+        PageMenuItem? item = FindCurrentItem();
         if (item is not null && Mode == PageMenuMode.Tree)
         {
-            for (var ancestor = item; ancestor is not null; ancestor = ancestor.Parent)
+            for (PageMenuItem? ancestor = item; ancestor is not null; ancestor = ancestor.Parent)
             {
                 if (ancestor.HasChildren && ancestor.SetExpanded(true))
+                {
                     _expanded.Add(ancestor.Key);
+                }
             }
         }
         _syncing = true;
@@ -616,31 +668,42 @@ public class PageMenu : Control
 
     private PageMenuItem? FindCurrentItem()
     {
-        var all = AllItems().ToList();
+        List<PageMenuItem> all = AllItems().ToList();
         if (all.Count == 0)
+        {
             return null;
+        }
 
-        for (var v = _watched.Count - 1; v >= 0; v--)
+        for (int v = _watched.Count - 1; v >= 0; v--)
         {
             if (_watched[v] is not { CurrentPage: { } current } pages)
+            {
                 continue;
+            }
 
-            var visited = new HashSet<PageId>();
-            var queue = new Queue<(PageRegistration Page, PageId? Parent)>([(current, pages.CurrentParentPage)]);
-            while (queue.TryDequeue(out var next))
+            HashSet<PageId> visited = new();
+            Queue<(PageRegistration Page, PageId? Parent)> queue = new([(current, pages.CurrentParentPage)]);
+            while (queue.TryDequeue(out (PageRegistration Page, PageId? Parent) next))
             {
                 if (!visited.Add(next.Page.PageId))
+                {
                     continue;
-                var matches = all.Where(item => item.PageId == next.Page.PageId).ToList();
+                }
+
+                List<PageMenuItem> matches = all.Where(item => item.PageId == next.Page.PageId).ToList();
                 if (matches.Count > 0)
+                {
                     return matches.FirstOrDefault(item => item.ParentPage == next.Parent) ?? matches[0];
+                }
 
                 // The parent the page was reached from comes first.
-                var parents = next.Parent is { } reachedFrom ? next.Page.Parents.Prepend(reachedFrom) : next.Page.Parents;
-                foreach (var parent in parents)
+                IEnumerable<PageId> parents = next.Parent is { } reachedFrom ? next.Page.Parents.Prepend(reachedFrom) : next.Page.Parents;
+                foreach (PageId parent in parents)
                 {
                     if (PageRegistry.Find(parent) is { } registration)
+                    {
                         queue.Enqueue((registration, null));
+                    }
                 }
             }
         }
@@ -659,24 +722,30 @@ public class PageMenu : Control
             return;
         }
 
-        var addToBackStack = AddToBackStack;
+        bool addToBackStack = AddToBackStack;
         _navigating = true;
         try
         {
-            var path = item.Path;
-            var refused = false;
-            for (var i = 0; i < path.Count - 1; i++)
+            IReadOnlyList<PageMenuItem> path = item.Path;
+            bool refused = false;
+            for (int i = 0; i < path.Count - 1; i++)
             {
-                var step = path[i];
-                var pages = view.PageControlDataContext;
+                PageMenuItem step = path[i];
+                PageControlDataContext pages = view.PageControlDataContext;
                 // The page is already shown here, e.g. reached from another parent: only its place in the tree changes.
                 if (pages.CurrentPageId == item.PageId)
+                {
                     break;
+                }
+
                 if (pages.CurrentPageId != step.PageId)
                 {
                     // A page known not to show its children in a view of its own isn't worth visiting on the way.
-                    if (_hostsChildren.TryGetValue(step.PageId, out var hosts) && !hosts)
+                    if (_hostsChildren.TryGetValue(step.PageId, out bool hosts) && !hosts)
+                    {
                         continue;
+                    }
+
                     if (!pages.NavigateTo(step.PageId, step.ParentPage, addToBackStack))
                     {
                         refused = true;
@@ -684,15 +753,19 @@ public class PageMenu : Control
                     }
                     addToBackStack = false;
                 }
-                var child = pages.ActivePage?.ChildView is { } childView && childView.PageControlDataContext.ParentPage == step.PageId
+                PageView? child = pages.ActivePage?.ChildView is { } childView && childView.PageControlDataContext.ParentPage == step.PageId
                     ? childView
                     : null;
                 _hostsChildren[step.PageId] = child is not null;
                 if (child is not null)
+                {
                     view = child;
+                }
             }
             if (!refused)
+            {
                 view.PageControlDataContext.NavigateTo(item.PageId, item.ParentPage, addToBackStack);
+            }
         }
         finally
         {
@@ -709,30 +782,48 @@ public class PageMenu : Control
     private void OnListSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_syncing)
+        {
             return;
+        }
+
         if (_list.SelectedItem is PageMenuItem picked)
+        {
             Navigate(picked);
+        }
         else
+        {
             Highlight();
+        }
     }
 
     private void OnListTapped(object? sender, TappedEventArgs e)
     {
         if (e.Source is not Visual source || source.FindAncestorOfType<PageMenuChevron>(includeSelf: true) is not null)
+        {
             return;
+        }
+
         if (source.FindAncestorOfType<ListBoxItem>(includeSelf: true) is not { DataContext: PageMenuItem item })
+        {
             return;
+        }
 
         // Picking the highlighted item again, while one of its child pages is shown, returns to it.
         if (ReferenceEquals(item, _list.SelectedItem) && !IsShowing(item))
+        {
             Navigate(item);
+        }
+
         _flyout.Hide();
     }
 
     private void OnListKeyDown(object? sender, KeyEventArgs e)
     {
         if (_list.SelectedItem is not PageMenuItem item)
+        {
             return;
+        }
+
         switch (e.Key)
         {
             case Key.Right when TreeShown && item.HasChildren && !item.IsExpanded:
@@ -751,7 +842,10 @@ public class PageMenu : Control
                 break;
             case Key.Enter or Key.Space:
                 if (!IsShowing(item))
+                {
                     Navigate(item);
+                }
+
                 _flyout.Hide();
                 e.Handled = true;
                 break;
@@ -760,7 +854,7 @@ public class PageMenu : Control
 
     private void OnFlyoutOpened(object? sender, EventArgs e)
     {
-        var width = _topLevel?.Bounds.Width ?? 0;
+        double width = _topLevel?.Bounds.Width ?? 0;
         _flyoutHost.Width = Narrow && width > 0 ? Math.Min(320, width - 32) : 280;
         _flyoutHost.MaxHeight = _topLevel is { Bounds.Height: > 160 } topLevel ? topLevel.Bounds.Height - 96 : double.PositiveInfinity;
         _flyoutBackRegistration?.Dispose();
@@ -783,19 +877,25 @@ public class PageMenu : Control
     /// <summary>Arranges the menu for <see cref="ActualStyle"/> and <see cref="ActualPlacement"/>, if they changed.</summary>
     private void ApplyLayout(bool force = false)
     {
-        var narrow = Narrow;
-        var style = narrow && NarrowStyle is { } narrowStyle ? narrowStyle : Style;
-        var placement = narrow && NarrowPlacement is { } narrowPlacement ? narrowPlacement : Placement;
+        bool narrow = Narrow;
+        PageMenuStyle style = narrow && NarrowStyle is { } narrowStyle ? narrowStyle : Style;
+        ScreenPlacement placement = narrow && NarrowPlacement is { } narrowPlacement ? narrowPlacement : Placement;
         if (!force && _layoutApplied && style == ActualStyle && placement == ActualPlacement)
+        {
             return;
+        }
+
         _layoutApplied = true;
         if (style != ActualStyle || placement != ActualPlacement)
+        {
             _flyout.Hide();
+        }
+
         ActualStyle = style;
         ActualPlacement = placement;
 
         // The placement is read for the style: the edge it docks to, and where along that edge the items sit.
-        var side = style switch
+        DockSide side = style switch
         {
             PageMenuStyle.VerticalStrip => placement.IsRight ? DockSide.Right : DockSide.Left,
             PageMenuStyle.HorizontalStrip => placement.IsBottom ? DockSide.Bottom : DockSide.Top,
@@ -820,7 +920,7 @@ public class PageMenu : Control
         _flyoutHost.Child = null;
         if (style == PageMenuStyle.MenuButton)
         {
-            var onSide = side is DockSide.Left or DockSide.Right;
+            bool onSide = side is DockSide.Left or DockSide.Right;
             _button.HorizontalAlignment = onSide ? HorizontalAlignment.Center : placement.HorizontalAlignment;
             _button.VerticalAlignment = VerticalAlignment.Center;
             _button.Width = _button.Height = Touch ? 48 : 40;
@@ -847,7 +947,7 @@ public class PageMenu : Control
 
         // The panel is aligned inside the list, so the strip still spans its edge while the items sit at the
         // placement's end of it.
-        var panelKey = (style, placement);
+        (PageMenuStyle, ScreenPlacement) panelKey = (style, placement);
         if (_panelKey != panelKey)
         {
             _panelKey = panelKey;
@@ -866,14 +966,16 @@ public class PageMenu : Control
         );
         ScrollViewer.SetVerticalScrollBarVisibility(_list, Vertical ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled);
 
-        var templateKey = (style, TreeShown, ItemTemplate);
+        (PageMenuStyle, bool, IDataTemplate?) templateKey = (style, TreeShown, ItemTemplate);
         if (_templateKey != templateKey)
         {
             _templateKey = templateKey;
             _list.ItemTemplate = ItemTemplate ?? DefaultTemplate(style, TreeShown);
         }
-        foreach (var container in _list.GetRealizedContainers())
+        foreach (Control container in _list.GetRealizedContainers())
+        {
             _list.StyleContainer(container);
+        }
 
         // Below a local value, so DockPanel.Dock set on the menu wins.
         _dock?.Dispose();
@@ -911,12 +1013,14 @@ public class PageMenu : Control
 
         return new FuncDataTemplate<PageMenuItem>((item, _) =>
         {
-            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(tree ? "Auto,24,Auto,*" : "Auto,Auto,Auto,*") };
+            Grid grid = new() { ColumnDefinitions = new ColumnDefinitions(tree ? "Auto,24,Auto,*" : "Auto,Auto,Auto,*") };
             if (tree && item is not null)
             {
                 grid.Children.Add(new Border { Width = item.Depth * Indent });
                 if (item.HasChildren)
+                {
                     grid.Children.Add(new PageMenuChevron(item) { [Grid.ColumnProperty] = 1 });
+                }
             }
             grid.Children.Add(new PageIconView
             {
@@ -953,9 +1057,14 @@ internal sealed class PageMenuList(PageMenu menu) : ListBox
     {
         container.MinHeight = menu.ItemMinHeight;
         if (((container as ContentControl)?.Content ?? container.DataContext) is PageMenuItem { Registration.Shortcut: { } shortcut } item)
+        {
             ToolTip.SetTip(container, $"{item.DisplayName} ({PageShortcut.Format(shortcut)})");
+        }
         else
+        {
             container.ClearValue(ToolTip.TipProperty);
+        }
+
         if (container is ContentControl content)
         {
             content.HorizontalContentAlignment = menu.ItemContentAlignment;

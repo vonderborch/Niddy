@@ -1,4 +1,4 @@
-namespace Niddy.Security;
+namespace Niddy.Core.Security;
 
 /// <summary>
 /// Platform-agnostic interface for secure storage of sensitive strings such as tokens and passwords.

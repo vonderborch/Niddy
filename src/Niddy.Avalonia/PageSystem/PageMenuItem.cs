@@ -37,7 +37,7 @@ public sealed class PageMenuItem : INotifyPropertyChanged
     /// <summary>How deeply the item is nested: 0 at the top of the menu.</summary>
     public int Depth { get; }
 
-    /// <summary>The items nested under this one. Empty in a <see cref="Flat" /> menu.</summary>
+    /// <summary>The items nested under this one. Empty in a <see cref="PageMenuMode.Flat" /> menu.</summary>
     public IReadOnlyList<PageMenuItem> Children { get; internal set; } = Array.Empty<PageMenuItem>();
 
     /// <summary>Whether items are nested under this one.</summary>
@@ -70,12 +70,13 @@ public sealed class PageMenuItem : INotifyPropertyChanged
     {
         get
         {
-            List<PageMenuItem> list = new List<PageMenuItem>();
-            for (PageMenuItem pageMenuItem = this; pageMenuItem != null; pageMenuItem = pageMenuItem.Parent)
+            List<PageMenuItem> path = new();
+            for (PageMenuItem? item = this; item != null; item = item.Parent)
             {
-                list.Insert(0, pageMenuItem);
+                path.Insert(0, item);
             }
-            return list;
+
+            return path;
         }
     }
 

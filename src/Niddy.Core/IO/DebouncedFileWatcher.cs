@@ -1,6 +1,6 @@
-using Niddy.Threading;
+using Niddy.Core.Threading;
 
-namespace Niddy.IO;
+namespace Niddy.Core.IO;
 
 /// <summary>A change to a file or directory, after <see cref="DebouncedFileWatcher"/> has merged repeated events.</summary>
 /// <param name="FullPath">The path that changed; for a rename, the new path.</param>
@@ -28,7 +28,7 @@ public sealed class FileChangesEventArgs(IReadOnlyList<FileChange> changes) : Ev
 /// </remarks>
 /// <example>
 /// <code>
-/// using var watcher = DebouncedFileWatcher.ForFile(settingsPath);
+/// using DebouncedFileWatcher watcher = DebouncedFileWatcher.ForFile(settingsPath);
 /// watcher.Changed += (_, _) => ReloadSettings();
 /// </code>
 /// </example>
@@ -42,6 +42,7 @@ public sealed class DebouncedFileWatcher : IDisposable
     private readonly Debouncer _debouncer;
     private readonly SynchronizationContext? _context;
     private readonly List<FileChange> _changes = [];
+    private readonly StringComparison _pathComparison = Path.Comparison;
 
     /// <summary>Watches a directory.</summary>
     /// <param name="directory">The directory to watch. It must exist.</param>
@@ -59,21 +60,21 @@ public sealed class DebouncedFileWatcher : IDisposable
         bool captureContext = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        _context = captureContext ? SynchronizationContext.Current : null;
-        _debouncer = new Debouncer(delay ?? DefaultDelay, captureContext: false);
-        _debouncer.Error += (_, ex) => RaiseError(ex);
+        this._context = captureContext ? SynchronizationContext.Current : null;
+        this._debouncer = new Debouncer(delay ?? DefaultDelay, captureContext: false);
+        this._debouncer.Error += (_, ex) => RaiseError(ex);
 
-        _watcher = new FileSystemWatcher(Path.GetFullPath(directory), filter)
+        this._watcher = new FileSystemWatcher(Path.GetFullPath(directory), filter)
         {
             IncludeSubdirectories = includeSubdirectories,
             NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
         };
-        _watcher.Created += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Created));
-        _watcher.Changed += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Changed));
-        _watcher.Deleted += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Deleted));
-        _watcher.Renamed += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Renamed, e.OldFullPath));
-        _watcher.Error += (_, e) => RaiseError(e.GetException());
-        _watcher.EnableRaisingEvents = true;
+        this._watcher.Created += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Created));
+        this._watcher.Changed += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Changed));
+        this._watcher.Deleted += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Deleted));
+        this._watcher.Renamed += (_, e) => Record(new FileChange(e.FullPath, WatcherChangeTypes.Renamed, e.OldFullPath));
+        this._watcher.Error += (_, e) => RaiseError(e.GetException());
+        this._watcher.EnableRaisingEvents = true;
     }
 
     /// <summary>
@@ -87,31 +88,31 @@ public sealed class DebouncedFileWatcher : IDisposable
     /// </param>
     public static DebouncedFileWatcher ForFile(string filePath, TimeSpan? delay = null, bool captureContext = true)
     {
-        var fullPath = Path.GetFullPath(filePath);
+        string fullPath = Path.GetFullPath(filePath);
         return new DebouncedFileWatcher(Path.GetDirectoryName(fullPath)!, Path.GetFileName(fullPath), delay: delay, captureContext: captureContext);
     }
 
     /// <summary>The directory being watched.</summary>
-    public string Directory => _watcher.Path;
+    public string Directory => this._watcher.Path;
 
     /// <summary>Which files are watched, e.g. <c>"*.json"</c>.</summary>
-    public string Filter => _watcher.Filter;
+    public string Filter => this._watcher.Filter;
 
     /// <summary>How long events must stop arriving for before they are reported.</summary>
-    public TimeSpan Delay => _debouncer.Delay;
+    public TimeSpan Delay => this._debouncer.Delay;
 
     /// <summary>Whether changes are being watched. True from creation; set to false to pause.</summary>
     public bool Enabled
     {
-        get => _watcher.EnableRaisingEvents;
-        set => _watcher.EnableRaisingEvents = value;
+        get => this._watcher.EnableRaisingEvents;
+        set => this._watcher.EnableRaisingEvents = value;
     }
 
     /// <summary>Which kinds of change to watch for. Defaults to names, writes, sizes and creation times.</summary>
     public NotifyFilters NotifyFilter
     {
-        get => _watcher.NotifyFilter;
-        set => _watcher.NotifyFilter = value;
+        get => this._watcher.NotifyFilter;
+        set => this._watcher.NotifyFilter = value;
     }
 
     /// <summary>Raised once changes have settled, with one merged change per path.</summary>
@@ -126,18 +127,21 @@ public sealed class DebouncedFileWatcher : IDisposable
     /// <summary>Stops watching and drops unreported changes.</summary>
     public void Dispose()
     {
-        _watcher.Dispose();
-        _debouncer.Dispose();
+        this._watcher.Dispose();
+        this._debouncer.Dispose();
     }
 
     /// <summary>Adds a change, merging it with an earlier one for the same path, and restarts the wait.</summary>
     internal void Record(FileChange change)
     {
-        lock (_gate)
-            Merge(_changes, change);
+        lock (this._gate)
+        {
+            Merge(this._changes, change, this._pathComparison);
+        }
+
         try
         {
-            _debouncer.Invoke(Report);
+            this._debouncer.Invoke(Report);
         }
         catch (ObjectDisposedException)
         {
@@ -146,73 +150,89 @@ public sealed class DebouncedFileWatcher : IDisposable
     }
 
     /// <summary>Merges <paramref name="change"/> into <paramref name="changes"/>, keeping one entry per path.</summary>
-    internal static void Merge(List<FileChange> changes, FileChange change)
+    internal static void Merge(List<FileChange> changes, FileChange change, StringComparison comparison)
     {
-        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         int IndexOf(string? path) => path is null ? -1 : changes.FindIndex(c => string.Equals(c.FullPath, path, comparison));
 
         if (change.ChangeType == WatcherChangeTypes.Renamed)
         {
             // A file created then renamed is simply created under its new name.
-            var oldIndex = IndexOf(change.OldFullPath);
-            var created = oldIndex >= 0 && changes[oldIndex].ChangeType == WatcherChangeTypes.Created;
+            int oldIndex = IndexOf(change.OldFullPath);
+            bool created = oldIndex >= 0 && changes[oldIndex].ChangeType == WatcherChangeTypes.Created;
             if (oldIndex >= 0)
+            {
                 changes.RemoveAt(oldIndex);
-            var existing = IndexOf(change.FullPath);
+            }
+
+            int existing = IndexOf(change.FullPath);
             if (existing >= 0)
+            {
                 changes.RemoveAt(existing);
+            }
+
             changes.Add(created ? new FileChange(change.FullPath, WatcherChangeTypes.Created) : change);
             return;
         }
 
-        var index = IndexOf(change.FullPath);
+        int index = IndexOf(change.FullPath);
         if (index < 0)
         {
             changes.Add(change);
             return;
         }
 
-        var merged = (changes[index].ChangeType, change.ChangeType) switch
+        WatcherChangeTypes? merged = (changes[index].ChangeType, change.ChangeType) switch
         {
             (WatcherChangeTypes.Created, WatcherChangeTypes.Changed) => WatcherChangeTypes.Created,
             (WatcherChangeTypes.Created, WatcherChangeTypes.Deleted) => (WatcherChangeTypes?)null,
             (WatcherChangeTypes.Deleted, WatcherChangeTypes.Created) => WatcherChangeTypes.Changed,
             (WatcherChangeTypes.Renamed, WatcherChangeTypes.Changed) => WatcherChangeTypes.Renamed,
-            (_, var next) => next,
+            (_, WatcherChangeTypes next) => next,
         };
 
         if (merged is not { } type)
+        {
             changes.RemoveAt(index);
+        }
         else
+        {
             changes[index] = changes[index] with { ChangeType = type, OldFullPath = type == WatcherChangeTypes.Renamed ? changes[index].OldFullPath : null };
+        }
     }
 
     private void Report()
     {
         FileChange[] changes;
-        lock (_gate)
+        lock (this._gate)
         {
-            changes = [.. _changes];
-            _changes.Clear();
+            changes = [.. this._changes];
+            this._changes.Clear();
         }
 
         if (changes.Length == 0)
+        {
             return;
-        var args = new FileChangesEventArgs(changes);
-        Raise(() => Changed?.Invoke(this, args));
+        }
+
+        FileChangesEventArgs args = new(changes);
+        Raise(() => this.Changed?.Invoke(this, args));
     }
 
     private void RaiseError(Exception exception)
     {
-        var args = new ErrorEventArgs(exception);
-        Raise(() => Error?.Invoke(this, args));
+        ErrorEventArgs args = new(exception);
+        Raise(() => this.Error?.Invoke(this, args));
     }
 
     private void Raise(Action raise)
     {
-        if (_context is null)
+        if (this._context is null)
+        {
             raise();
+        }
         else
-            _context.Post(static state => ((Action)state!)(), raise);
+        {
+            this._context.Post(static state => ((Action)state!)(), raise);
+        }
     }
 }

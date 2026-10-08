@@ -2,7 +2,7 @@
 
 `Niddy.Avalonia` · Niddy.Avalonia · [source](../../src/Niddy.Avalonia/ScreenPlacement.cs)
 
-One of the eight positions around the edge of the screen (or of the hosting control): the four corners and the middle of each side. It's used by [`PageMenu`](PageSystem/PageMenu.md) placements, [`ToastHost`](Toast/ToastHost.md) and `NiddyAppOptions.ToastPlacement`.
+One of the eight positions around the edge of the screen (or of the hosting control): the four corners and the middle of each side. It's used by [`PageMenu`](PageSystem/PageMenu.md) placements, [`ToastHost`](Toasts/ToastHost.md) and `NiddyAppOptions.ToastPlacement`.
 
 | Value | |
 |---|---|
@@ -13,7 +13,7 @@ One of the eight positions around the edge of the screen (or of the hosting cont
 ## Example
 
 ```csharp
-var options = new NiddyAppOptions
+NiddyAppOptions options = new()
 {
     ToastPlacement = ScreenPlacement.TopRight,
     ToastNarrowPlacement = ScreenPlacement.TopCenter,
@@ -26,4 +26,4 @@ var options = new NiddyAppOptions
 
 ## See also
 
-- [ToastHost](Toast/ToastHost.md), [PageMenu](PageSystem/PageMenu.md)
+- [ToastHost](Toasts/ToastHost.md), [PageMenu](PageSystem/PageMenu.md)

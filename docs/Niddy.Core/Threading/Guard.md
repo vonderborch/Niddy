@@ -1,6 +1,6 @@
 # Guard
 
-`Niddy.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Guard.cs)
+`Niddy.Core.Threading` · Niddy.Core · [source](../../../src/Niddy.Core/Threading/Guard.cs)
 
 A thread-safe boolean flag, backed by an `int` and changed with `Interlocked`. Its main use is "do this only once", even when several threads race to it.
 
@@ -10,16 +10,17 @@ A thread-safe boolean flag, backed by an `int` and changed with `Interlocked`. I
 
 | Member | Description |
 |---|---|
-| `bool Check` | Whether it's set. Doesn't change it. |
-| `bool CheckSet` | Sets it and returns **true only for the caller that set it** (false if it was already set). |
-| `void MarkChecked()` | Sets it. |
-| `void Reset()` | Clears it. |
-| `==` / `!=` with `bool` | `if (_disposed == true)` compares with `Check`. |
+| `bool IsClaimed` | Whether it's claimed. Doesn't change it. |
+| `bool TryClaim` | Claims it and returns **true only for the caller that claimed it** (false if it was already claimed). It's a property, not a method. |
+| `void Claim()` | Claims it, whether or not it was already claimed. Use `TryClaim` when you need to know who claimed it first. |
+| `void Release()` | Releases it, so it can be claimed again. |
+| `==` / `!=` with `bool` | `if (_disposed == true)` compares with `IsClaimed`. |
+| `Equals(Guard)` | Whether two guards are in the same state. |
 
 ## Examples
 
 ```csharp
-using Niddy.Threading;
+using Niddy.Core.Threading;
 
 public sealed class Connection : IDisposable
 {
@@ -27,14 +28,17 @@ public sealed class Connection : IDisposable
 
     public void Dispose()
     {
-        if (!_disposed.CheckSet)
+        if (!_disposed.TryClaim)
+        {
             return;            // someone else got here first
+        }
+
         _socket.Dispose();
     }
 
     public void Send(byte[] data)
     {
-        ObjectDisposedException.ThrowIf(_disposed.Check, this);
+        ObjectDisposedException.ThrowIf(_disposed.IsClaimed, this);
         _socket.Send(data);
     }
 }

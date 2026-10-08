@@ -1,3 +1,4 @@
+
 namespace Niddy.Avalonia.PageSystem;
 
 /// <summary>
@@ -24,7 +25,10 @@ public class PageId : IEquatable<PageId>
     {
         ArgumentNullException.ThrowIfNull(pageType);
         if (!typeof(Page).IsAssignableFrom(pageType))
+        {
             throw new ArgumentException($"{pageType.FullName} doesn't derive from {typeof(Page).FullName}, so it isn't a page.", nameof(pageType));
+        }
+
         return new PageId(pageType);
     }
 

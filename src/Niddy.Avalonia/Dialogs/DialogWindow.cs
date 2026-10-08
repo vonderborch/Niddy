@@ -19,9 +19,14 @@ internal sealed class DialogWindow : Window
         Title = dialog.WindowTitle ?? string.Empty;
         Width = width;
         if (height is { } fixedHeight)
+        {
             Height = fixedHeight;
+        }
         else
+        {
             SizeToContent = SizeToContent.Height;
+        }
+
         CanResize = false;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -37,16 +42,21 @@ internal sealed class DialogWindow : Window
 
     internal static async Task ShowAsync(Window owner, Control content, IDialog dialog, double width, double? height = null)
     {
-        var window = new DialogWindow(content, dialog, width, height);
+        DialogWindow window = new(content, dialog, width, height);
 
         // Long content scrolls rather than growing the window past its owner.
         if (height is null)
+        {
             window.MaxHeight = Math.Max(200, owner.Bounds.Height);
+        }
 
-        var closed = window.ShowDialog(owner);
+        Task closed = window.ShowDialog(owner);
         await Task.WhenAny(dialog.Completion, closed);
         if (!window._isClosed)
+        {
             window.Close();
+        }
+
         await closed;
 
         // The window can be closed without the dialog completing, e.g. when the owner closes.
@@ -57,6 +67,8 @@ internal sealed class DialogWindow : Window
     {
         // The user closed the window: treat it like Escape or back, which a dialog without a cancel button refuses.
         if (!e.IsProgrammatic && !_dialog.TryDismiss())
+        {
             e.Cancel = true;
+        }
     }
 }

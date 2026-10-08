@@ -1,15 +1,20 @@
+
 namespace Niddy.Avalonia.PageSystem;
 
 /// <summary>
 ///     Registers a <see cref="Page"/> and places it in the page tree. The registration is read at compile time by the
 ///     <c>Niddy.Avalonia.Generators</c> package, which registers every attributed page automatically, including pages
 ///     in other projects and in assemblies loaded at runtime. Without that package the attribute does nothing; register
-///     pages with <see cref="PageRegistry.Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?)"/>
+///     pages with <see cref="PageRegistry.Register{TPage}(string?, bool, IEnumerable{Type}?, IEnumerable{Type}?, bool?, PageIcon?, string?, string?)"/>
 ///     instead.
 ///     <para>
 ///         The tree can be declared from either end: a parent lists its <see cref="Children"/>, or a child lists its
 ///         <see cref="Parents"/> (e.g. a plugin page adding itself under a page of the app). Both can be combined, and
 ///         a page can have several parents.
+///     </para>
+///     <para>
+///         Pages are listed in <see cref="PageRegistry.Sort"/> order, alphabetically by default. <see cref="SortKey"/>
+///         changes where one page sorts without changing its name.
 ///     </para>
 /// </summary>
 /// <example>
@@ -34,8 +39,8 @@ public sealed class PageRegistrationAttribute : Attribute
     public Type[]? Parents { get; set; }
 
     /// <summary>
-    ///     This page's child pages, in the order a <see cref="PageView"/> lists them. Each must be registered itself to
-    ///     appear.
+    ///     This page's child pages. Each must be registered itself to appear. They are listed in
+    ///     <see cref="PageRegistry.Sort"/> order; with <see cref="PageRegistry.DeclaredOrder"/>, in this order.
     /// </summary>
     public Type[]? Children { get; set; }
 
@@ -51,4 +56,11 @@ public sealed class PageRegistrationAttribute : Attribute
     ///     <see cref="PageRegistration.Shortcut"/>.
     /// </summary>
     public string? Shortcut { get; set; }
+
+    /// <summary>
+    ///     What the page sorts by in <see cref="PageRegistry.Alphabetical"/> order (the default), if not its display
+    ///     name. E.g. <c>"0"</c> puts a dashboard first and <c>"zzz"</c> puts settings last. See
+    ///     <see cref="PageRegistration.SortKey"/>.
+    /// </summary>
+    public string? SortKey { get; set; }
 }

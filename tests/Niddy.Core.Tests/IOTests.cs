@@ -1,4 +1,5 @@
-using Niddy.IO;
+using Niddy.Core.IO;
+using Niddy.Core.SystemInfo;
 
 namespace Niddy.Core.Tests;
 
@@ -11,7 +12,7 @@ public sealed class AtomicFileTests : IDisposable
     [Fact]
     public void WriteAllText_ReplacesTheFileAndLeavesNoTempFiles()
     {
-        var path = Path.Combine(_dir, "sub", "a.txt");
+        string path = Path.Combine(_dir, "sub", "a.txt");
 
         AtomicFile.WriteAllText(path, "one");
         AtomicFile.WriteAllText(path, "two");
@@ -23,7 +24,7 @@ public sealed class AtomicFileTests : IDisposable
     [Fact]
     public async Task WriteAsync_WhenTheWriterThrows_KeepsTheOldFile()
     {
-        var path = Path.Combine(_dir, "b.bin");
+        string path = Path.Combine(_dir, "b.bin");
         await AtomicFile.WriteAllBytesAsync(path, new byte[] { 1, 2, 3 }, TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => AtomicFile.WriteAsync(path, async (stream, ct) =>
@@ -39,7 +40,7 @@ public sealed class AtomicFileTests : IDisposable
     [Fact]
     public void WriteAllText_HasNoByteOrderMark()
     {
-        var path = Path.Combine(_dir, "c.txt");
+        string path = Path.Combine(_dir, "c.txt");
 
         AtomicFile.WriteAllText(path, "hé");
 
@@ -49,12 +50,24 @@ public sealed class AtomicFileTests : IDisposable
 
 public class FileWatcherMergeTests
 {
-    private static List<FileChange> Merge(params FileChange[] events)
+    private static List<FileChange> Merge(params FileChange[] events) => MergeWith(StringComparison.Ordinal, events);
+
+    private static List<FileChange> MergeWith(StringComparison comparison, params FileChange[] events)
     {
-        var changes = new List<FileChange>();
-        foreach (var change in events)
-            DebouncedFileWatcher.Merge(changes, change);
+        List<FileChange> changes = new();
+        foreach (FileChange change in events)
+        {
+            DebouncedFileWatcher.Merge(changes, change, comparison);
+        }
+
         return changes;
+    }
+
+    [Fact]
+    public void PathsDifferingOnlyInCase_MergeOnlyWhenTheComparisonIgnoresCase()
+    {
+        Assert.Single(MergeWith(StringComparison.OrdinalIgnoreCase, C("/a", WatcherChangeTypes.Changed), C("/A", WatcherChangeTypes.Changed)));
+        Assert.Equal(2, MergeWith(StringComparison.Ordinal, C("/a", WatcherChangeTypes.Changed), C("/A", WatcherChangeTypes.Changed)).Count);
     }
 
     private static FileChange C(string path, WatcherChangeTypes type, string? old = null) => new(path, type, old);
@@ -95,6 +108,8 @@ public class FileWatcherMergeTests
                 .Select(c => c.FullPath));
 }
 
+// The watcher reads Platform.Info, which PlatformTests briefly make throw.
+[Collection(PlatformStateCollection.Name)]
 public sealed class DebouncedFileWatcherTests : IDisposable
 {
     private readonly string _dir = Directory.CreateTempSubdirectory("niddy-watch-").FullName;
@@ -104,24 +119,26 @@ public sealed class DebouncedFileWatcherTests : IDisposable
     [Fact]
     public async Task Changed_IsRaisedOnceForABurstOfWrites()
     {
-        var path = Path.Combine(_dir, "watched.txt");
-        using var watcher = DebouncedFileWatcher.ForFile(path, TimeSpan.FromMilliseconds(200), captureContext: false);
-        var raised = new TaskCompletionSource<IReadOnlyList<FileChange>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var count = 0;
+        string path = Path.Combine(_dir, "watched.txt");
+        using DebouncedFileWatcher watcher = DebouncedFileWatcher.ForFile(path, TimeSpan.FromMilliseconds(200), captureContext: false);
+        TaskCompletionSource<IReadOnlyList<FileChange>> raised = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int count = 0;
         watcher.Changed += (_, e) =>
         {
             Interlocked.Increment(ref count);
             raised.TrySetResult(e.Changes);
         };
 
-        for (var i = 0; i < 5; i++)
+        for (int i = 0; i < 5; i++)
+        {
             await File.WriteAllTextAsync(path, $"write {i}", TestContext.Current.CancellationToken);
+        }
 
-        var changes = await raised.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        IReadOnlyList<FileChange> changes = await raised.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         await Task.Delay(500, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, count);
-        var change = Assert.Single(changes);
+        FileChange change = Assert.Single(changes);
         Assert.Equal("watched.txt", Path.GetFileName(change.FullPath));
     }
 }
@@ -134,7 +151,7 @@ public class AppPathsTests
     [Fact]
     public void Windows_UsesRoamingAndLocalAppData()
     {
-        var paths = AppPaths.For("App", "Org", AppPaths.Platform.Windows,
+        AppPaths paths = AppPaths.For("App", "Org", OS.Windows,
             Env(("APPDATA", "/r"), ("LOCALAPPDATA", "/l")), "/home");
 
         Assert.Equal(Path.Combine("/r", "Org", "App"), paths.Data);
@@ -146,7 +163,7 @@ public class AppPathsTests
     [Fact]
     public void MacOS_UsesLibraryFolders()
     {
-        var paths = AppPaths.For("My App", null, AppPaths.Platform.MacOS, Env(), "/Users/me");
+        AppPaths paths = AppPaths.For("My App", null, OS.MacOS, Env(), "/Users/me");
 
         Assert.Equal("/Users/me/Library/Application Support/My App", paths.Data);
         Assert.Equal("/Users/me/Library/Caches/My App", paths.Cache);
@@ -156,8 +173,8 @@ public class AppPathsTests
     [Fact]
     public void Linux_FollowsXdgWithDefaults()
     {
-        var defaults = AppPaths.For("My App", null, AppPaths.Platform.Linux, Env(), "/home/me");
-        var custom = AppPaths.For("My App", null, AppPaths.Platform.Linux, Env(("XDG_CONFIG_HOME", "/cfg"), ("XDG_STATE_HOME", "relative")), "/home/me");
+        AppPaths defaults = AppPaths.For("My App", null, OS.Linux, Env(), "/home/me");
+        AppPaths custom = AppPaths.For("My App", null, OS.Linux, Env(("XDG_CONFIG_HOME", "/cfg"), ("XDG_STATE_HOME", "relative")), "/home/me");
 
         Assert.Equal("/home/me/.local/share/my-app", defaults.Data);
         Assert.Equal("/home/me/.config/my-app", defaults.Config);
@@ -170,7 +187,7 @@ public class AppPathsTests
     [Fact]
     public void Portable_KeepsEverythingUnderOneFolder()
     {
-        var paths = AppPaths.Portable("/opt/app");
+        AppPaths paths = AppPaths.Portable("/opt/app");
 
         Assert.Equal(Path.GetFullPath("/opt/app"), paths.Data);
         Assert.Equal(Path.Combine(paths.Data, "Logs"), paths.Logs);
@@ -178,15 +195,32 @@ public class AppPathsTests
 
     [Fact]
     public void For_RejectsNamesThatArentFolderNames() =>
-        Assert.Throws<ArgumentException>(() => AppPaths.For("a/b"));
+        Assert.Throws<ArgumentException>(() => AppPaths.For("a/b", null, OS.Linux, Env(), "/home/me"));
+
+    [Fact]
+    public void MacCatalyst_UsesLibraryFolders()
+    {
+        AppPaths paths = AppPaths.For("My App", null, OS.MacCatalyst, Env(), "/Users/me");
+
+        Assert.Equal("/Users/me/Library/Application Support/My App", paths.Data);
+    }
+
+    [Fact]
+    public void FreeBSD_FollowsXdg()
+    {
+        AppPaths paths = AppPaths.For("My App", null, OS.FreeBSD, Env(("XDG_DATA_HOME", "/data")), "/home/me");
+
+        Assert.Equal("/data/my-app", paths.Data);
+        Assert.Equal("/home/me/.config/my-app", paths.Config);
+    }
 
     [Fact]
     public void EnsureCreated_CreatesTheFolders()
     {
-        var root = Path.Combine(Path.GetTempPath(), "niddy-paths-" + Guid.NewGuid().ToString("N"));
+        string root = Path.Combine(Path.GetTempPath(), "niddy-paths-" + Guid.NewGuid().ToString("N"));
         try
         {
-            var paths = AppPaths.Portable(root).EnsureCreated();
+            AppPaths paths = AppPaths.Portable(root).EnsureCreated();
             Assert.True(Directory.Exists(paths.Cache));
             Assert.True(Directory.Exists(paths.Logs));
         }
@@ -195,4 +229,19 @@ public class AppPathsTests
             Directory.Delete(root, recursive: true);
         }
     }
+}
+
+public class PathComparisonTests
+{
+    [Theory]
+    [InlineData(OS.Windows, StringComparison.OrdinalIgnoreCase)]
+    [InlineData(OS.MacOS, StringComparison.OrdinalIgnoreCase)]
+    [InlineData(OS.MacCatalyst, StringComparison.OrdinalIgnoreCase)]
+    [InlineData(OS.Linux, StringComparison.Ordinal)]
+    [InlineData(OS.FreeBSD, StringComparison.Ordinal)]
+    [InlineData(OS.Android, StringComparison.Ordinal)]
+    [InlineData(OS.iOS, StringComparison.Ordinal)]
+    [InlineData(OS.Browser, StringComparison.Ordinal)]
+    public void PathComparisonFor_MatchesThePlatformsDefaultFileSystem(OS os, StringComparison expected) =>
+        Assert.Equal(expected, FileSystemExtensions.PathComparisonFor(os));
 }
