@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Niddy.Core.Serialization;
 
 namespace Niddy.Core.Tests;
@@ -96,5 +97,36 @@ public sealed class SerializationTests : IDisposable
         File.WriteAllText(path, "");
 
         Assert.Null(JsonFile.Read<Sample>(path));
+    }
+
+    [Fact]
+    public void RenameProperty_KeepsTheValueAndPosition()
+    {
+        JsonObject json = JsonNode.Parse("""{ "a": 1, "colour": "red", "b": 2 }""")!.AsObject();
+
+        Assert.True(json.RenameProperty("colour", "color"));
+
+        Assert.Equal("""{"a":1,"color":"red","b":2}""", json.ToJsonString());
+    }
+
+    [Fact]
+    public void RenameProperty_ReplacesAnExistingTarget()
+    {
+        JsonObject json = JsonNode.Parse("""{ "color": "blue", "a": 1, "colour": "red" }""")!.AsObject();
+
+        Assert.True(json.RenameProperty("colour", "color"));
+
+        Assert.Equal("""{"a":1,"color":"red"}""", json.ToJsonString());
+    }
+
+    [Fact]
+    public void RenameProperty_MissingPropertyReturnsFalse()
+    {
+        JsonObject json = JsonNode.Parse("""{ "a": 1 }""")!.AsObject();
+
+        Assert.False(json.RenameProperty("colour", "color"));
+        Assert.True(json.RenameProperty("a", "a"));
+
+        Assert.Equal("""{"a":1}""", json.ToJsonString());
     }
 }

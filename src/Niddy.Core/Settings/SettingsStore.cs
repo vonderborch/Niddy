@@ -1,6 +1,8 @@
 using System.Text.Json;
-using Niddy.Core.Serialization;
+using System.Text.Json.Nodes;
 using Niddy.Core.IO;
+using Niddy.Core.IO.Backups;
+using Niddy.Core.Serialization;
 
 namespace Niddy.Core.Settings;
 
@@ -56,7 +58,23 @@ public sealed class SettingsCorruptFileEventArgs(string filePath, Exception exce
 /// The file is read the first time <see cref="Current"/> is used. A missing file gives <see cref="CreateDefault"/>. A
 /// file that can't be read as <typeparamref name="T"/> is renamed to <c>*.bad</c> (so it can be recovered) and the
 /// defaults are used. Saves are atomic, so a crash never leaves a half-written file. Override <see cref="OnLoaded"/>
-/// to fill in or migrate values after loading.
+/// to fill in values after loading.
+/// </para>
+/// <para>
+/// Override <see cref="Version"/> to version the file. The store writes the version into the file (as
+/// <c>"$version"</c>), and when it reads an older file it upgrades the JSON one version at a time with the steps
+/// added in <see cref="ConfigureMigrations"/>, then saves the upgraded file, after backing up the old one:
+/// <code>
+/// public sealed class AppSettingsStore(AppPaths paths)
+///     : SettingsStore&lt;AppSettings&gt;(Path.Combine(paths.Config, "settings.json"))
+/// {
+///     public override int Version =&gt; 2;
+///
+///     protected override void ConfigureMigrations(SettingsMigrations migrations) =&gt; migrations
+///         .Add(fromVersion: 0, json =&gt; json.RenameProperty("colour", "color"))   // files from before versioning
+///         .Add(fromVersion: 1, json =&gt; json.Remove("legacyMode"));
+/// }
+/// </code>
 /// </para>
 /// <para>
 /// The store is thread-safe, but <see cref="Current"/> is a live object: change it through <see cref="Update"/> so the
@@ -70,6 +88,8 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     private readonly Lock _gate = new();
     private readonly JsonSerializerOptions _serializationOptions;
     private T? _current;
+    private int? _fileVersion;
+    private SettingsMigrations? _migrations;
     private string? _lastWritten;
     private DebouncedFileWatcher? _watcher;
 
@@ -106,6 +126,69 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
             }
         }
     }
+
+    /// <summary>
+    /// The version of the settings this store reads and writes. Override it to version the file; start at 1 and add
+    /// one, with a step in <see cref="ConfigureMigrations"/>, whenever the JSON changes in a way the serializer can't absorb (a
+    /// renamed, moved or retyped property, or a value that needs converting). Adding a property with a default
+    /// doesn't need a new version.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The default, 0, means unversioned: the file is read and written as plain <typeparamref name="T"/> and
+    /// nothing is migrated. When it's above 0, the version is written into the file as <see cref="VersionPropertyName"/>.
+    /// A file without one is version 0, so the step from version 0 upgrades files written before versioning was turned
+    /// on.
+    /// </para>
+    /// <para>
+    /// A file with a newer version than this (written by a newer copy of the app) is read as it is, without
+    /// migrating. Properties <typeparamref name="T"/> doesn't know are dropped, unless it has a
+    /// <c>[JsonExtensionData]</c> property to keep them. Saves keep the file's newer version, so the newer app doesn't
+    /// upgrade it again. <see cref="FileVersion"/> tells you when this happened.
+    /// </para>
+    /// </remarks>
+    public virtual int Version => 0;
+
+    /// <summary>
+    /// The version the file had when it was last read, before upgrading: 0 for a file without one, and null when there
+    /// was no file, it couldn't be read, or the store is unversioned (<see cref="Version"/> is 0). Compare it with
+    /// <see cref="Version"/> after reading <see cref="Current"/>: lower means the file was upgraded, higher means it was
+    /// written by a newer copy of the app.
+    /// </summary>
+    public int? FileVersion
+    {
+        get
+        {
+            lock (this._gate)
+            {
+                return this._fileVersion;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether to copy the file before saving an upgraded version over it, to
+    /// <c>settings.json.v1-20261008T140312Z.bak</c> (the old version and a timestamp). Defaults to
+    /// <see langword="true"/>. Making the copy is best effort: if it fails, the upgrade is saved anyway.
+    /// </summary>
+    public bool BackupBeforeUpgrade { get; set; } = true;
+
+    /// <summary>
+    /// What to do when an upgrade step (see <see cref="ConfigureMigrations"/>) or <see cref="OnUpgraded"/> throws:
+    /// <see cref="SettingsMigrationFailureAction.UseDefaults"/> (the default),
+    /// <see cref="SettingsMigrationFailureAction.SkipStep"/> or <see cref="SettingsMigrationFailureAction.Throw"/>.
+    /// Override <see cref="OnMigrationFailed"/> to decide per failure instead.
+    /// </summary>
+    public SettingsMigrationFailureAction MigrationFailureAction { get; set; } = SettingsMigrationFailureAction.UseDefaults;
+
+    /// <summary>
+    /// Whether a version with no step in <see cref="ConfigureMigrations"/> is a failure. When
+    /// <see langword="false"/> (the default), that version has nothing to change and is skipped. When
+    /// <see langword="true"/>, it's handled like a step that threw: <see cref="OnMigrationFailed"/> gets a
+    /// <see cref="SettingsMigrationException"/> whose <see cref="SettingsMigrationException.IsMissingStep"/> is set,
+    /// and <see cref="MigrationFailureAction"/> applies. Turn it on to make sure every version bump comes with a step.
+    /// </summary>
+    public bool TreatMissingMigrationAsError { get; set; }
 
     /// <summary>Whether <see cref="Watch"/> is reloading the settings when the file changes.</summary>
     public bool IsWatching => this._watcher is not null;
@@ -233,8 +316,72 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     protected virtual T CreateDefault() => new();
 
     /// <summary>
+    /// The name of the property that holds the version in the file; <c>"$version"</c> by default. It's written first,
+    /// and removed from the JSON before it's deserialized, so <typeparamref name="T"/> never sees it.
+    /// </summary>
+    /// <remarks>
+    /// Override it to take over a version property your settings already have, such as <c>"version"</c>, and then
+    /// remove that property from <typeparamref name="T"/>. Use the name as it appears in the file.
+    /// </remarks>
+    protected virtual string VersionPropertyName => "$version";
+
+    /// <summary>
+    /// Adds the upgrade steps of a versioned store: one lambda per version, each upgrading the settings JSON from that
+    /// version to the next. It's called once, the first time a file is read; the base adds none.
+    /// <code>
+    /// protected override void ConfigureMigrations(SettingsMigrations migrations) =&gt; migrations
+    ///     .Add(fromVersion: 0, json =&gt; json.RenameProperty("colour", "color"))
+    ///     .Add(fromVersion: 1, json =&gt; json["volume"] = json["volume"]!.GetValue&lt;int&gt;() * 10);
+    /// </code>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When an older file is read, the step for each version from the file's up to <see cref="Version"/> runs, in
+    /// order, before the JSON is deserialized: a file saved at version 1, read by a store at version 5, goes through
+    /// the steps from 1, 2, 3 and 4. A version without a step is skipped, or, with
+    /// <see cref="TreatMissingMigrationAsError"/>, handled like a step that threw. A step from <see cref="Version"/>
+    /// or above can never run, so reading the file throws <see cref="InvalidOperationException"/>.
+    /// </para>
+    /// <para>
+    /// If a step throws, <see cref="OnMigrationFailed"/> decides what happens. By default the file is treated as
+    /// unreadable: <see cref="CorruptFileDetected"/> is raised with a <see cref="SettingsMigrationException"/>, the
+    /// file is set aside if <see cref="OverrideCorruptFile"/> is set, and the defaults are used. Changes that are
+    /// easier on the typed settings go in <see cref="OnUpgraded"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="migrations">Add the steps to this.</param>
+    protected virtual void ConfigureMigrations(SettingsMigrations migrations)
+    {
+    }
+
+    /// <summary>
+    /// Called once after an older file has been upgraded by the steps from <see cref="ConfigureMigrations"/> and
+    /// deserialized, before
+    /// <see cref="OnLoaded"/>. Override it for upgrades that are easier on the typed settings, such as working out a
+    /// new value from others. If it throws, <see cref="OnMigrationFailed"/> decides what happens, as for a step.
+    /// </summary>
+    /// <param name="settings">The upgraded settings.</param>
+    /// <param name="fromVersion">The version the file had.</param>
+    protected virtual void OnUpgraded(T settings, int fromVersion)
+    {
+    }
+
+    /// <summary>
+    /// Called when an upgrade step or <see cref="OnUpgraded"/> throws, or a step is missing and
+    /// <see cref="TreatMissingMigrationAsError"/> is set, to decide what happens next.
+    /// Returns <see cref="MigrationFailureAction"/> by default. Override it to decide per failure (for example, skip a
+    /// step that only tidies up, but give up on one that converts values) or to log the failure.
+    /// </summary>
+    /// <param name="exception">What failed: <see cref="SettingsMigrationException.FromVersion"/> and
+    /// <see cref="SettingsMigrationException.ToVersion"/> say which step, and <see cref="Exception.InnerException"/>
+    /// is what it threw. <see cref="SettingsMigrationException.IsMissingStep"/> is set when there was no step.</param>
+    /// <returns>What to do. See <see cref="SettingsMigrationFailureAction"/>.</returns>
+    protected virtual SettingsMigrationFailureAction OnMigrationFailed(SettingsMigrationException exception) =>
+        this.MigrationFailureAction;
+
+    /// <summary>
     /// Called after settings are loaded or created, before they become <see cref="Current"/>. Override it to fill in
-    /// missing values or migrate old ones.
+    /// missing values. To change the shape of old files, version the store instead (see <see cref="Version"/>).
     /// </summary>
     /// <param name="settings">The loaded settings.</param>
     protected virtual void OnLoaded(T settings)
@@ -272,13 +419,24 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
                 return;
             }
 
-            settings = this._current = Parse(text);
+            int? fileVersion = this._fileVersion;
+            try
+            {
+                settings = this._current = Parse(text);
+            }
+            catch (SettingsMigrationException)
+            {
+                // SettingsMigrationFailureAction.Throw, with no caller to throw to: keep the current settings.
+                this._fileVersion = fileVersion;
+                return;
+            }
         }
         OnChanged(settings, SettingsChangeSource.Load);
     }
 
     private T Read()
     {
+        this._fileVersion = null;
         string text;
         try
         {
@@ -298,19 +456,29 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
 
     private T Parse(string text)
     {
+        this._fileVersion = null;
+        SettingsMigrations migrations = this.Migrations;
         if (string.IsNullOrWhiteSpace(text))
         {
             return Prepare(CreateDefault());
         }
 
+        T settings;
+        int? upgradedFrom = null;
         try
         {
-            T settings = JsonSerializer.Deserialize<T>(text, this._serializationOptions) ?? CreateDefault();
-            this._lastWritten = text;
-            return Prepare(settings);
+            if (this.Version > 0)
+            {
+                (settings, upgradedFrom) = DeserializeVersioned(text, migrations);
+            }
+            else
+            {
+                settings = JsonSerializer.Deserialize<T>(text, this._serializationOptions) ?? CreateDefault();
+            }
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or SettingsMigrationException { Rethrow: false })
         {
+            this._fileVersion = null;
             bool isSetAside = false;
             if (this.OverrideCorruptFile)
             {
@@ -319,6 +487,156 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
 
             OnCorruptFileDetected(this.FilePath, ex, isSetAside);
             return Prepare(CreateDefault());
+        }
+
+        this._lastWritten = text;
+        Prepare(settings);
+        if (upgradedFrom is { } from)
+        {
+            SaveUpgrade(settings, from);
+        }
+
+        return settings;
+    }
+
+    // Built on first use, so ConfigureMigrations isn't called from the constructor. Called under _gate.
+    private SettingsMigrations Migrations
+    {
+        get
+        {
+            if (this._migrations is null)
+            {
+                SettingsMigrations migrations = new();
+                ConfigureMigrations(migrations);
+                migrations.Lock(this.Version);
+                this._migrations = migrations;
+            }
+
+            return this._migrations;
+        }
+    }
+
+    private (T Settings, int? UpgradedFrom) DeserializeVersioned(string text, SettingsMigrations migrations)
+    {
+        JsonNode? node = JsonNode.Parse(text, this.NodeOptions, this.DocumentOptions);
+        if (node is null)
+        {
+            this._fileVersion = 0;
+            return (CreateDefault(), null);   // a file that's just "null", like the unversioned path
+        }
+
+        if (node is not JsonObject json)
+        {
+            throw new JsonException($"The settings file must hold a JSON object, not {node.GetValueKind()}.");
+        }
+
+        int fileVersion = 0;
+        if (json.TryGetPropertyValue(this.VersionPropertyName, out JsonNode? versionNode))
+        {
+            if (versionNode is not JsonValue value || !value.TryGetValue(out fileVersion) || fileVersion < 0)
+            {
+                throw new JsonException($"\"{this.VersionPropertyName}\" must be a whole number of 0 or more, not {versionNode?.ToJsonString() ?? "null"}.");
+            }
+
+            json.Remove(this.VersionPropertyName);
+        }
+
+        this._fileVersion = fileVersion;
+        int version = this.Version;
+        for (int from = fileVersion; from < version; from++)
+        {
+            if (!migrations.TryGet(from, out Action<JsonObject>? step))
+            {
+                if (this.TreatMissingMigrationAsError)
+                {
+                    HandleMigrationFailure(SettingsMigrationException.MissingStep(from));
+                }
+
+                continue;
+            }
+
+            JsonObject before = json.DeepClone().AsObject();
+            try
+            {
+                step(json);
+            }
+            catch (Exception ex)
+            {
+                HandleMigrationFailure(new SettingsMigrationException(from, from + 1, ex));
+                json = before;   // SkipStep: undo what the step did
+            }
+        }
+
+        T settings = json.Deserialize<T>(this._serializationOptions) ?? CreateDefault();
+        if (fileVersion >= version)
+        {
+            return (settings, null);
+        }
+
+        try
+        {
+            OnUpgraded(settings, fileVersion);
+        }
+        catch (Exception ex)
+        {
+            HandleMigrationFailure(new SettingsMigrationException(fileVersion, version, ex));
+            settings = json.Deserialize<T>(this._serializationOptions) ?? CreateDefault();   // SkipStep
+        }
+
+        return (settings, fileVersion);
+    }
+
+    // Returns for SkipStep; throws the failure otherwise, marked to escape Parse for Throw.
+    private void HandleMigrationFailure(SettingsMigrationException failure)
+    {
+        switch (OnMigrationFailed(failure))
+        {
+            case SettingsMigrationFailureAction.SkipStep:
+                return;
+            case SettingsMigrationFailureAction.Throw:
+                failure.Rethrow = true;
+                throw failure;
+            default:
+                throw failure;
+        }
+    }
+
+    private JsonNodeOptions NodeOptions => new()
+    {
+        PropertyNameCaseInsensitive = this._serializationOptions.PropertyNameCaseInsensitive,
+    };
+
+    private JsonDocumentOptions DocumentOptions => new()
+    {
+        AllowTrailingCommas = this._serializationOptions.AllowTrailingCommas,
+        // JsonDocument can skip comments but not keep them.
+        CommentHandling = this._serializationOptions.ReadCommentHandling == JsonCommentHandling.Disallow
+            ? JsonCommentHandling.Disallow
+            : JsonCommentHandling.Skip,
+        MaxDepth = this._serializationOptions.MaxDepth,
+    };
+
+    private void SaveUpgrade(T settings, int fromVersion)
+    {
+        try
+        {
+            if (this.BackupBeforeUpgrade)
+            {
+                File.Backup(this.FilePath, label: $"v{fromVersion}", extension: ".bak");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best effort: the upgrade is still saved.
+        }
+
+        try
+        {
+            Write(settings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The upgraded settings are still current, and the next save writes them.
         }
     }
 
@@ -330,9 +648,37 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
 
     private void Write(T settings)
     {
-        string text = JsonSerializer.Serialize(settings, this._serializationOptions);
+        string text = Serialize(settings);
         this._lastWritten = text;
         AtomicFile.WriteAllText(this.FilePath, text);
+    }
+
+    private string Serialize(T settings)
+    {
+        int version = this.Version;
+        if (version <= 0)
+        {
+            return JsonSerializer.Serialize(settings, this._serializationOptions);
+        }
+
+        if (JsonSerializer.SerializeToNode(settings, this._serializationOptions) is not JsonObject json)
+        {
+            throw new InvalidOperationException($"A versioned {typeof(T).Name} must serialize to a JSON object.");
+        }
+
+        // A file from a newer app keeps its version, so that app doesn't upgrade it again.
+        int written = Math.Max(version, this._fileVersion ?? 0);
+        string name = this.VersionPropertyName;
+        if (json.ContainsKey(name))
+        {
+            json[name] = written;
+        }
+        else
+        {
+            json.Insert(0, name, written);
+        }
+
+        return json.ToJsonString(this._serializationOptions);
     }
 
     private bool SetAside()

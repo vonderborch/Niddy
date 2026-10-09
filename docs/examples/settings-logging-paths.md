@@ -41,6 +41,22 @@ settings.Changed += (_, e) => Dispatcher.UIThread.Post(() => ApplyFontSize(e.Set
 
 `Changed` can be raised on a background thread (by `Watch`), so marshal to the UI thread as above.
 
+When a later release renames or reshapes a setting, version the store so existing files are upgraded instead of losing the value. Here, `Workspace` used to be saved as `"folder"`:
+
+```csharp
+public sealed class AppSettingsStore(AppPaths paths)
+    : SettingsStore<AppSettings>(Path.Combine(paths.Config, "settings.json"))
+{
+    public override int Version => 1;
+
+    // fromVersion 0: files from before versioning. RenameProperty is in Niddy.Core.Serialization.
+    protected override void ConfigureMigrations(SettingsMigrations migrations) =>
+        migrations.Add(fromVersion: 0, json => json.RenameProperty("folder", "workspace"));
+}
+```
+
+The old file is backed up and saved at the new version the first time it's read. See [Versioning](../Niddy.Core/Settings/SettingsStore.md#versioning).
+
 ## Logging
 
 ```csharp

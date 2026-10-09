@@ -240,6 +240,19 @@ SettingsStore store = new(paths);
 store.Load();                                 // defaults if missing or corrupt
 store.Update(s => s.FontSize = 16);           // saves + raises Changed(e.Settings, e.Source)
 store.Watch();                                // reload on external edits (Changed may fire on a background thread)
+// Versioning: the store writes "$version" into the file and upgrades older files one step at a time, on the raw JSON
+// (before deserializing), then backs up the old file and saves. A file without a version is version 0.
+//   public override int Version => 2;
+//   protected override void ConfigureMigrations(SettingsMigrations migrations) => migrations   // one lambda per version
+//       .Add(fromVersion: 0, json => json.RenameProperty("colour", "color"))
+//       .Add(fromVersion: 1, json => json.Remove("legacy"));   // a step from >= Version throws on read: bump Version
+//   protected override void OnUpgraded(Settings s, int fromVersion) { … }   // optional typed fix-up after migrating
+// Steps run in order (file v1, store v5: the steps from 1, 2, 3, 4); a version without a step is skipped, unless
+//   store.TreatMissingMigrationAsError = true, which makes it a failure (SettingsMigrationException.IsMissingStep).
+// A step that throws (or is missing, as above): store.MigrationFailureAction = UseDefaults (default: CorruptFileDetected, *.bad, defaults)
+//   | SkipStep (undo that step, carry on) | Throw (SettingsMigrationException out of Current/Load/Update; file untouched)
+//   or override OnMigrationFailed(SettingsMigrationException e) to choose per step (e.FromVersion, e.ToVersion)
+// store.FileVersion: the file's version before upgrading (higher than Version = written by a newer app; read as-is)
 
 // Logging: rolling daily files, plus any other ILoggingBuilder providers
 ILoggerFactory lf = NiddyLogging.CreateFactory(paths, LogLevel.Information, b => b.AddConsole());
@@ -344,6 +357,8 @@ Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-pat
 | `Archive.Create(source, stream)` without a format | `new ArchiveCreateOptions { Format = ArchiveFormat.Zip }`; a stream has no extension to go by |
 | `Process.Start(url)` | `UriLauncher.TryLaunchAsync(this, url)` in Avalonia; `UrlLauncher.Open(url)` without a UI (not on Android) |
 | Tokens in `SettingsStore` | `ISecureStorage` |
+| A `Version` property on the settings class, checked in `OnLoaded` | Override the store's `Version` and add a step per version in `ConfigureMigrations`; the store writes the version and runs each step on the raw JSON, so renamed or retyped properties aren't lost |
+| A new `SettingsStore.Version` for every added property | Only bump it when old JSON needs changing; new properties just get their defaults |
 | `SecureStorageFactory.Create()` | `SecureStorageFactory.Create(paths.Data, "MyApp")`; `baseDirectory` is required |
 | Trusting the default secure storage on Android, FreeBSD or WASI | It's `EncryptedFileSecureStorage` there, with a guessable key; register a Keystore (or similar) provider for real secrets |
 | Calling `SecureStorageFactory.Create` in a browser app with no provider | It throws `PlatformNotSupportedException`; keep secrets server-side, or register a provider deliberately |

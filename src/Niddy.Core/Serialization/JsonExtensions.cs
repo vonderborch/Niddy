@@ -1,12 +1,13 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Niddy.Core.Serialization;
 
 /// <summary>
-/// Extensions on <see cref="JsonSerializerOptions"/> and <see cref="JsonSerializer"/>: Niddy's default options
-/// (<c>JsonSerializerOptions.Niddy</c>) and a deserialize that returns default instead of throwing
-/// (<c>JsonSerializer.DeserializeOrDefault</c>).
+/// Extensions on <see cref="JsonSerializerOptions"/>, <see cref="JsonSerializer"/> and <see cref="JsonObject"/>:
+/// Niddy's default options (<c>JsonSerializerOptions.Niddy</c>), a deserialize that returns default instead of throwing
+/// (<c>JsonSerializer.DeserializeOrDefault</c>), and <c>RenameProperty</c> for upgrading JSON.
 /// </summary>
 public static class JsonExtensions
 {
@@ -44,6 +45,48 @@ public static class JsonExtensions
             {
                 return default;
             }
+        }
+    }
+
+    extension(JsonObject json)
+    {
+        /// <summary>
+        /// Renames a property, keeping its value and its place in the object. If <paramref name="newName"/> is already
+        /// there, it's replaced. Handy in a <see cref="Niddy.Core.Settings.SettingsMigrations"/> upgrade step.
+        /// </summary>
+        /// <param name="oldName">The property's current name.</param>
+        /// <param name="newName">Its new name.</param>
+        /// <returns>True if the property was renamed; false if there's no <paramref name="oldName"/> property.</returns>
+        public bool RenameProperty(string oldName, string newName)
+        {
+            ArgumentNullException.ThrowIfNull(oldName);
+            ArgumentNullException.ThrowIfNull(newName);
+
+            int index = json.IndexOf(oldName);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            if (oldName == newName)
+            {
+                return true;
+            }
+
+            JsonNode? value = json.GetAt(index).Value;
+            json.RemoveAt(index);
+            int existing = json.IndexOf(newName);
+            if (existing >= 0)
+            {
+                json.RemoveAt(existing);
+                if (existing < index)
+                {
+                    index--;
+                }
+            }
+
+            json.Insert(index, newName, value);
+            return true;
         }
     }
 

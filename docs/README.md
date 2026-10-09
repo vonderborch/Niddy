@@ -36,8 +36,8 @@ UI-independent building blocks. Namespaces follow the folders, e.g. `Niddy.Core.
 | Resilience | [Retry](Niddy.Core/Resilience/Retry.md): retry with exponential backoff, `MaxRetriesException` |
 | Results | [Result](Niddy.Core/Results/Result.md) · [Error](Niddy.Core/Results/Error.md) · [Option](Niddy.Core/Results/Option.md) |
 | Security | [ISecureStorage](Niddy.Core/Security/ISecureStorage.md) · [SecureStorageFactory](Niddy.Core/Security/SecureStorageFactory.md): keychain / credential manager / encrypted files, plus pluggable providers (`SecureStorageProvider`, `SecureStorageContext`) · [EncryptedFileSecureStorage](Niddy.Core/Security/EncryptedFileSecureStorage.md) |
-| Serialization | [JsonFile](Niddy.Core/Serialization/JsonFile.md): atomic JSON files · [JsonExtensions](Niddy.Core/Serialization/JsonExtensions.md): `JsonSerializerOptions.Niddy`, `JsonSerializer.DeserializeOrDefault` |
-| Settings | [SettingsStore\<T>](Niddy.Core/Settings/SettingsStore.md): typed JSON settings with change events and file watching |
+| Serialization | [JsonFile](Niddy.Core/Serialization/JsonFile.md): atomic JSON files · [JsonExtensions](Niddy.Core/Serialization/JsonExtensions.md): `JsonSerializerOptions.Niddy`, `JsonSerializer.DeserializeOrDefault`, `JsonObject.RenameProperty` |
+| Settings | [SettingsStore\<T>](Niddy.Core/Settings/SettingsStore.md): typed JSON settings with change events, file watching, and versioned step-by-step upgrades (`Version`, `ConfigureMigrations`, [`SettingsMigrations`](Niddy.Core/Settings/SettingsStore.md#settingsmigrations), `SettingsMigrationFailureAction`, `SettingsMigrationException`) |
 | SystemInfo | [Platform](Niddy.Core/SystemInfo/Platform.md): OS and version, architecture, target triple, memory and GPUs; declaring supported OSes |
 | Text | [Humanize](Niddy.Core/Text/Humanize.md): sizes, counts, durations, relative times · [StringExtensions](Niddy.Core/Text/StringExtensions.md) |
 | Threading | [Debouncer](Niddy.Core/Threading/Debouncer.md) · [Throttler](Niddy.Core/Threading/Throttler.md) · [Guard](Niddy.Core/Threading/Guard.md) · [AtomicOperations](Niddy.Core/Threading/AtomicOperations.md) |
