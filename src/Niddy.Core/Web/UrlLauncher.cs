@@ -4,7 +4,7 @@ using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 using Niddy.Core.SystemInfo;
 
-namespace Niddy.Core;
+namespace Niddy.Core.Web;
 
 /// <summary>
 /// Opens URLs with the platform's default handler, without a UI framework.

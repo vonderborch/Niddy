@@ -34,7 +34,7 @@
 | `ToOption()` | [`Option<T>`](Option.md); the error is dropped. |
 | `ToResult()` | Drops the value. |
 | `Deconstruct(out bool isSuccess, out T? value, out Error? error)` | `(bool ok, T? value, Error? error) = result;` |
-| implicit `T → Result<T>`, `Error → Result<T>`, `Result<T> → Result` | |
+| implicit `T → Result<T>`, `Error → Result<T>`, `Result<T> → Result` | Careful with `Result<string>`: in `ok ? text : new Error("…")` the `?:` is typed `Error`, because a string converts to an `Error`, so the text becomes a failure. Use `if`/`return`, or `Result<string>.Success(text)`. |
 
 `ResultException` is an `InvalidOperationException` with an `Error` property; its inner exception is `Error.Exception`.
 

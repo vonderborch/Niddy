@@ -25,8 +25,9 @@ UI-independent building blocks. Namespaces follow the folders, e.g. `Niddy.Core.
 
 | Folder | Pages |
 |---|---|
-| (root) | [DisposableExtensions](Niddy.Core/DisposableExtensions.md): `value.DisposeIfPossible()` · [UrlLauncher](Niddy.Core/UrlLauncher.md): open a URL without a UI framework |
+| (root) | [DisposableExtensions](Niddy.Core/DisposableExtensions.md): `value.DisposeIfPossible()` |
 | Collections | [ListExtensions](Niddy.Core/Collections/ListExtensions.md) |
+| GitHub | [GitHubIssues](Niddy.Core/GitHub/GitHubIssues.md): open an issue (bug, feature request, anything) through the API, the browser, or the API with a browser fallback, with `GitHubIssueReference` and `GitHubIssueSubmission` · [GitHubIssue](Niddy.Core/GitHub/GitHubIssue.md): the issue's contents, crash reports from exceptions, with `GitHubIssueReporter` · [GitHubIssueSection](Niddy.Core/GitHub/GitHubIssueSection.md): collapsible logs and other blocks · [GitHubReleases](Niddy.Core/GitHub/GitHubReleases.md): latest, tagged and listed releases, update checks, picking the asset for this platform, checksum-verified downloads and a cache for the rate limit, with `GitHubRelease`, `GitHubReleaseAsset`, `GitHubReleaseOptions` and `GitHubUpdateCheck` |
 | IO | [AppPaths](Niddy.Core/IO/AppPaths.md): per-platform app folders · [AtomicFile](Niddy.Core/IO/AtomicFile.md): crash-safe writes · [DebouncedFileWatcher](Niddy.Core/IO/DebouncedFileWatcher.md) · [FileSystemExtensions](Niddy.Core/IO/FileSystemExtensions.md): `File`/`Directory`/`Path` extensions such as deletes that retry · [StreamExtensions](Niddy.Core/IO/StreamExtensions.md) |
 | IO.Archives | [Archive](Niddy.Core/IO/Archives/Archive.md): zip, tar and tar.gz, with `ArchiveFormat`, the options records, `ArchiveEntryInfo` and `ArchiveProgress` |
 | IO.Backups | [BackupExtensions](Niddy.Core/IO/Backups/BackupExtensions.md): `File.Backup` / `Directory.Backup`, with `BackupNaming` |
@@ -40,6 +41,7 @@ UI-independent building blocks. Namespaces follow the folders, e.g. `Niddy.Core.
 | Settings | [SettingsStore\<T>](Niddy.Core/Settings/SettingsStore.md): typed JSON settings with change events, file watching, and versioned step-by-step upgrades (`Version`, `ConfigureMigrations`, [`SettingsMigrations`](Niddy.Core/Settings/SettingsStore.md#settingsmigrations), `SettingsMigrationFailureAction`, `SettingsMigrationException`) |
 | SystemInfo | [Platform](Niddy.Core/SystemInfo/Platform.md): OS and version, architecture, target triple, memory and GPUs; declaring supported OSes |
 | Text | [Humanize](Niddy.Core/Text/Humanize.md): sizes, counts, durations, relative times · [StringExtensions](Niddy.Core/Text/StringExtensions.md) |
+| Web | [UrlLauncher](Niddy.Core/Web/UrlLauncher.md): open a URL in the browser without a UI framework · [WebContent](Niddy.Core/Web/WebContent.md): download a file or into a folder (atomic, with `DownloadOptions` for overwriting, progress via `DownloadProgress`, a size limit, SHA-256 checking and resuming), read a URL as text, bytes or JSON, or stream it line by line; every method also has a synchronous version |
 | Threading | [Debouncer](Niddy.Core/Threading/Debouncer.md) · [Throttler](Niddy.Core/Threading/Throttler.md) · [Guard](Niddy.Core/Threading/Guard.md) · [AtomicOperations](Niddy.Core/Threading/AtomicOperations.md) |
 
 ## Niddy.Avalonia

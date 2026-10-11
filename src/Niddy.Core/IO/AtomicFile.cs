@@ -121,7 +121,7 @@ public static class AtomicFile
         ShouldRetry = ex => ex is IOException or UnauthorizedAccessException,
     };
 
-    private static void Replace(string temp, string path) =>
+    internal static void Replace(string temp, string path) =>
         Retry.ExecuteAndRethrowLast(() => File.Move(temp, path, overwrite: true), ReplaceRetry);
 
     private static void TryDelete(string temp)

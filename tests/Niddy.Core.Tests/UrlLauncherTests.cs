@@ -1,4 +1,5 @@
 using Niddy.Core.SystemInfo;
+using Niddy.Core.Web;
 
 namespace Niddy.Core.Tests;
 

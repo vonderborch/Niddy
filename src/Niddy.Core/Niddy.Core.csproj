@@ -6,8 +6,8 @@
         <Nullable>enable</Nullable>
         <IsPackable>true</IsPackable>
         <PackageId>Niddy.Core</PackageId>
-        <Description>Niddy: my personal .NET utilities. File-system extensions (retrying deletes, backups, copies, path matching), zip/tar archives, atomic file writes, debounced file watching, app paths, stream and string extensions, JSON files, humanized formatting, retry with backoff, Result and Option types, debounce/throttle and lock-free threading primitives, a rolling file logger, typed JSON settings stores, and platform-native secure storage (macOS Keychain, Windows Credential Manager, Linux Secret Service, with an encrypted-file fallback).</Description>
-        <PackageTags>$(PackageTags);helpers;extensions;retry;threading;result;option;debounce;logging;settings;security;keychain;credentials;secure-storage;zip;tar;archive</PackageTags>
+        <Description>Niddy: my personal .NET utilities. File-system extensions (retrying deletes, backups, copies, path matching), zip/tar archives, atomic file writes, debounced file watching, app paths, stream and string extensions, JSON files, humanized formatting, retry with backoff, Result and Option types, debounce/throttle and lock-free threading primitives, a rolling file logger, typed JSON settings stores, GitHub issue reporting, GitHub release update checks and verified downloads, file downloads (size limits, checksums, resuming) and reading text/JSON from the web, opening URLs, and platform-native secure storage (macOS Keychain, Windows Credential Manager, Linux Secret Service, with an encrypted-file fallback).</Description>
+        <PackageTags>$(PackageTags);helpers;extensions;retry;threading;result;option;debounce;logging;settings;security;keychain;credentials;secure-storage;zip;tar;archive;github;issues;bug-report;releases;updates;update-check;checksum;download;http;json</PackageTags>
         <!-- UrlLauncher: [JSImport] code and a function pointer for dispatch_async_f. -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <GeneratePackageOnBuild Condition="'$(Configuration)' != 'Release'">true</GeneratePackageOnBuild>

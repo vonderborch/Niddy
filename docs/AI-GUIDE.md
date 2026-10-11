@@ -6,7 +6,7 @@ This one file tells you how to use the whole library in an app. It's written for
 
 | Package | Use it for | Namespaces |
 |---|---|---|
-| `Niddy.Core` | Anything (no UI): results, settings, logging, paths, files, archives, JSON, retry, secure storage, threading, platform info | Namespaces follow the folders: `Niddy.Core` (`UrlLauncher`, `DisposeIfPossible`), `.Collections`, `.IO`, `.IO.Archives`, `.IO.Backups`, `.Logging`, `.Logging.Files`, `.Logging.Batching`, `.Resilience`, `.Results`, `.Security`, `.Serialization`, `.Settings`, `.SystemInfo`, `.Text`, `.Threading` |
+| `Niddy.Core` | Anything (no UI): results, settings, logging, paths, files, archives, JSON, retry, secure storage, threading, platform info | Namespaces follow the folders: `Niddy.Core` (`DisposeIfPossible`), `.Collections`, `.GitHub`, `.IO`, `.IO.Archives`, `.IO.Backups`, `.Logging`, `.Logging.Files`, `.Logging.Batching`, `.Resilience`, `.Results`, `.Security`, `.Serialization`, `.Settings`, `.SystemInfo`, `.Text`, `.Threading`, `.Web` |
 | `Niddy.Avalonia` | Avalonia apps: app hosting, pages, dialogs, toasts, state memory, converters | Namespaces follow the folders: `Niddy.Avalonia` (`FilePicker`, `UriLauncher`, `WindowNotification`, `ScreenPlacement`), `.Hosting`, `.PageSystem` (everything for pages: `Page`, `PageView`, `[PageRegistration]`, `PageRegistry`, `[PageIcon]`, `PageMenu`), `.Dialogs`, `.Toasts`, `.State`, `.Converters`, `.DataContexts`, `.Layout`, `.Theme` |
 | `Niddy.Avalonia.Generators` | Compile-time registration of `[PageRegistration]` pages. **Without it, `[PageRegistration]` does nothing.** | generates `Niddy.Generated.Pages_<Assembly>` |
 
@@ -324,7 +324,73 @@ string.Equals(a, b, Path.Comparison);   // compare paths: ignores case on Window
 if (name.IsNullOrWhiteSpace()) return;   // [NotNullWhen(false)]: name is non-null after this
 string all = await stream.ReadToStringAsync();
 value.DisposeIfPossible();            // any T; disposes if IDisposable
-UrlLauncher.Open("https://example.com");   // no UI framework needed; not on Android
+
+// Web (namespace Niddy.Core.Web)
+UrlLauncher.Open("https://example.com");   // opens the browser; no UI framework needed; not on Android
+Result<FileInfo> saved = await WebContent.DownloadFileAsync(url, path, new DownloadOptions
+{
+    Overwrite = true,                     // false (default) + existing file → FileExists, nothing downloaded
+    Progress = new Progress<DownloadProgress>(p => bar.Value = p.Fraction ?? 0),
+    MaxBytes = 500_000_000,               // bigger (Content-Length or as it arrives) → TooLarge, nothing saved
+    Sha256 = expectedHex,                 // mismatch → ChecksumMismatch, nothing saved
+    Resume = true,                        // a failed/canceled download keeps its partial data; the next call asks for the rest (Range + If-Range)
+});
+// atomic (no partial file on failure), creates folders
+// HttpClient.Timeout only covers the response starting: pass a CancellationToken for stalled big downloads
+Result<FileInfo> intoFolder = await WebContent.DownloadToFolderAsync(url, folder);   // name from Content-Disposition, else the URL; can't escape folder
+Result<string> page = await WebContent.ReadTextAsync(url, maxBytes: 1_000_000);   // charset-aware (BOM, then charset, then UTF-8); whole body in memory
+Result<byte[]> bytes = await WebContent.ReadBytesAsync(url);
+Result<MyDto> dto = await WebContent.ReadJsonAsync<MyDto>(url);   // or (url, MyJsonContext.Default.MyDto) for trimming/AOT; bad JSON → InvalidContent
+await foreach (string line in WebContent.ReadLinesAsync(url, cancellationToken: ct)) { … }   // streams; break closes the connection
+// Fail (no throw) with WebContent.ErrorCodes: NotFound, HttpError (StatusCode on the HttpRequestException), Network, TooLarge,
+//   ChecksumMismatch, InvalidContent, FileExists, FileSystem
+// ReadLinesAsync throws instead: HttpRequestException before the first line, IOException partway. Pass an HttpClient for headers/BaseAddress (relative URLs)
+// Sync versions of everything (DownloadFile, DownloadToFolder, ReadText, ReadBytes, ReadJson, ReadLines): real sync sends, no deadlock,
+//   block the thread. Not in the browser. A client you pass needs a handler with sync sends (SocketsHttpHandler; not the native Android/iOS ones)
+
+// GitHub issues (Niddy.Core.GitHub): standalone, call from anywhere (crash handler, feedback button, CLI)
+GitHubIssue issue = GitHubIssue.Bug("Crash when saving", details) with   // or FeatureRequest / Question / Documentation, or new() { Title = …, Labels = […] }
+{
+    Sections = [GitHubIssueSection.FromLatestLogFile(paths.Logs, lines: 200)],   // collapsed <details>; also Code(title, text), Text(title, md); never throws for missing logs
+    Reporter = new GitHubIssueReporter(Name: "Jane", Email: "jane@example.com", GitHubUsername: "jane"),   // all optional
+    Details = new Dictionary<string, string> { ["Document"] = "a.txt" },   // table under the body
+    IncludeSystemInfo = true,                 // app version, OS, architecture, runtime; nothing identifying
+};
+GitHubIssue crash = GitHubIssue.FromException(ex, body: "What I was doing");   // title from the real cause, full ToString() in an "Exception" section, bug label, system info
+Result<GitHubIssueReference> created = await GitHubIssues.CreateAsync("owner/repo", token, issue);   // .Number, .Url
+// Too long for GitHub (65,536 chars) or a URL (~8,000): sections are cut first (shared evenly, "… (cut)"), then Body; reporter/details kept
+// Fails (no throw) with Error.Code in GitHubIssues.ErrorCodes: Unauthorized, Forbidden, RateLimited, NotFound, IssuesDisabled, Invalid, Failed, Network
+// Token: fine-grained PAT, one repo, Issues read/write only (a shipped token can be extracted). Labels/assignees/milestone are
+//   silently dropped unless the token has push access. Pass an HttpClient with BaseAddress for GitHub Enterprise.
+GitHubIssues.OpenInBrowser("owner/repo", issue);   // no token: prefilled new-issue form; GetNewIssueUrl for Avalonia's UriLauncher
+// API, else the form (no token, or Unauthorized/Forbidden/NotFound/RateLimited/Invalid); other failures returned. Avalonia: pass openUrl
+Result<GitHubIssueSubmission> sent = await GitHubIssues.CreateOrOpenAsync("owner/repo", tokenOrNull, issue, openUrl: url => _ = UriLauncher.TryLaunchAsync(control, url));
+// sent.Value.OpenedInBrowser / .Issue / .ApiError; can't open the browser: ErrorCodes.BrowserUnavailable
+// Sync: GitHubIssues.Create(…) / CreateOrOpen(…), same parameters and limits as WebContent's sync versions
+
+// GitHub releases (Niddy.Core.GitHub): update checks and downloads
+GitHubReleaseOptions releaseOptions = new()
+{
+    CacheDirectory = Path.Combine(paths.Cache, "releases"),   // fresh → no request; stale → ETag (304 is free); offline/rate-limited/5xx → stale copy
+    // Token = …, IncludePrereleases = true, CacheDuration = TimeSpan.FromHours(6)
+};
+Result<GitHubUpdateCheck> check = await GitHubReleases.CheckForUpdateAsync("owner/app", currentVersion, releaseOptions);
+// currentVersion: a string ("v1.2.0", AssemblyInformationalVersion with +build is fine) or a Version. Semver: 1.2.0-beta.10 > -beta.2, release > prerelease
+// No digits in the string → ArgumentException; a latest tag with no version → InvalidVersion failure
+if (check.TryGetValue(out GitHubUpdateCheck update) && update.IsUpdateAvailable)
+{
+    GitHubRelease latest = update.Latest;   // .TagName, .Name, .Notes, .Url, .PublishedAt, .Version, .Assets
+    GitHubReleaseAsset? asset = latest.FindAssetForPlatform();   // this OS/arch from names like app-linux-x64.tar.gz; filter: a => a.Name.EndsWith(".zip"); or GetAsset(name)
+    if (asset is not null)
+    {
+        Result<FileInfo> file = await GitHubReleases.DownloadAssetAsync(latest, asset, path, new DownloadOptions { Overwrite = true });
+        // SHA-256 checked against: DownloadOptions.Sha256, else GitHub's digest, else {asset}.sha256(sum), else SHA256SUMS/*checksums.txt. Failures use WebContent.ErrorCodes
+    }
+}
+// Also GetLatestAsync, GetByTagAsync, ListAsync(maxCount) (drafts need a token with push access; prereleases skipped by GetLatest/CheckForUpdate unless IncludePrereleases)
+// Lookups fail with GitHubReleases.ErrorCodes: NotFound, Unauthorized, Forbidden, RateLimited, Failed, Network, InvalidVersion
+// Without a token: 60 API requests/hour per IP, shared. Set CacheDirectory. Every method has a sync version (GetLatest, CheckForUpdate, DownloadAsset, …)
+string direct = GitHubReleases.GetAssetUrl("owner/app", "app-linux-x64.tar.gz");   // …/releases/latest/download/…: no API call, public repos, pass to WebContent
 
 // Machine info (namespace Niddy.Core.SystemInfo): detected once and cached
 Platform info = Platform.Info;
@@ -355,7 +421,14 @@ Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-pat
 | `ZipFile.ExtractToDirectory` on an upload or download | `Archive.Extract` with `MaxEntries`/`MaxTotalBytes` (or `maxBytes` on single-entry methods), so a zip bomb can't fill the disk |
 | Reading many single files from a big `.tar.gz` with `OpenEntry` | Each call rescans from the start; use zip for random access, or `Extract` with a `Filter` |
 | `Archive.Create(source, stream)` without a format | `new ArchiveCreateOptions { Format = ArchiveFormat.Zip }`; a stream has no extension to go by |
-| `Process.Start(url)` | `UriLauncher.TryLaunchAsync(this, url)` in Avalonia; `UrlLauncher.Open(url)` without a UI (not on Android) |
+| `Process.Start(url)` | `UriLauncher.TryLaunchAsync(this, url)` in Avalonia; `UrlLauncher.Open(url)` (`Niddy.Core.Web`) without a UI (not on Android) |
+| `using Niddy.Core;` for `UrlLauncher` | It's in `Niddy.Core.Web` |
+| `File.WriteAllBytes(path, await http.GetByteArrayAsync(url))` | `WebContent.DownloadFileAsync(url, path)`: streams to disk, atomic, progress, `Result` failures |
+| `WebContent.DownloadFileAsync(url, path, overwrite: true, progress: …)` | `new DownloadOptions { Overwrite = true, Progress = … }` as the third argument |
+| `Version.Parse(release.TagName.TrimStart('v'))` and `>` for update checks | `GitHubReleases.CheckForUpdateAsync`: semver order, prereleases, tag prefixes, `+build` metadata |
+| Calling the GitHub releases API on every app start without a token | Set `GitHubReleaseOptions.CacheDirectory`; 60 requests/hour per IP are shared by everyone on it |
+| `WebContent.ReadText` / `DownloadFile` (sync) in browser (WASM) code | The async versions; the sync ones are `[UnsupportedOSPlatform("browser")]` |
+| `return ok ? text : new Error("…");` in a method returning `Result<string>` | The `?:` is typed `Error` (string converts to `Error` implicitly), so the text becomes a failure. Use `if`/`return`, or `Result<string>.Success(text)` |
 | Tokens in `SettingsStore` | `ISecureStorage` |
 | A `Version` property on the settings class, checked in `OnLoaded` | Override the store's `Version` and add a step per version in `ConfigureMigrations`; the store writes the version and runs each step on the raw JSON, so renamed or retyped properties aren't lost |
 | A new `SettingsStore.Version` for every added property | Only bump it when old JSON needs changing; new properties just get their defaults |
