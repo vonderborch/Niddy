@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Niddy.Avalonia.Layout;
 using Niddy.Avalonia.PageSystem;
 
@@ -67,6 +69,12 @@ public partial class DialogOverlayHost : UserControl
 
         OpenDialog top = _openDialogs[^1];
         DialogCard.MaxWidth = top.MaxWidth;
+
+        // A filling dialog takes the whole host, less the margin, and its content gets that height instead of scrolling.
+        bool fill = top.Dialog.Fill;
+        DialogCard.HorizontalAlignment = fill ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        DialogCard.VerticalAlignment = fill ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+        DialogScroller.VerticalScrollBarVisibility = fill ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         DialogPresenter.Content = top.Content;
         OverlayPanel.IsVisible = true;
     }

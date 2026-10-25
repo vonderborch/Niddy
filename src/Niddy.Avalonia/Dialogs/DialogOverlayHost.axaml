@@ -18,7 +18,7 @@
                     Background="{DynamicResource SystemColorWindowColor}"
                     CornerRadius="4"
                     BoxShadow="0 8 24 0 #60000000">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer Name="DialogScroller" HorizontalScrollBarVisibility="Disabled">
                     <ContentPresenter Name="DialogPresenter" Padding="20" />
                 </ScrollViewer>
             </Border>

@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="40"
+             x:Class="Niddy.Avalonia.Tables.TableGridPager">
+
+    <!-- The pager under a TableGrid's rows. It wraps onto two lines when narrow. TableGrid wires the buttons and sets
+         the state, in UpdatePager. -->
+    <WrapPanel Margin="4,6,4,2">
+        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,16,2">
+            <Button Name="ButtonFirst" Content="«" ToolTip.Tip="First page" />
+            <Button Name="ButtonPrevious" Content="‹" ToolTip.Tip="Previous page" />
+            <TextBlock Text="Page" VerticalAlignment="Center" Margin="4,0,0,0" />
+            <TextBox Name="TextPage" MinWidth="56" HorizontalContentAlignment="Center" />
+            <TextBlock Name="TextPageCount" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <Button Name="ButtonNext" Content="›" ToolTip.Tip="Next page" />
+            <Button Name="ButtonLast" Content="»" ToolTip.Tip="Last page" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,2">
+            <StackPanel Name="PageSizePanel" Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Rows per page" VerticalAlignment="Center" />
+                <ComboBox Name="ComboPageSize" />
+            </StackPanel>
+            <TextBlock Name="TextRange" VerticalAlignment="Center" />
+            <Button Name="ButtonRefresh" Content="⟳" ToolTip.Tip="Refresh" />
+        </StackPanel>
+    </WrapPanel>
+
+</UserControl>

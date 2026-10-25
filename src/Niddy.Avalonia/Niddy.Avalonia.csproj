@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <IsPackable>true</IsPackable>
         <PackageId>Niddy.Avalonia</PackageId>
-        <Description>Niddy: my personal .NET utilities. Avalonia UI helpers: app hosting, dialogs (window and overlay, including color, markdown, table and web), a page system with menus and keyboard shortcuts, toasts with actions and progress, window and layout memory, a global exception handler, converters, responsive layout, theming and file pickers.</Description>
+        <Description>Niddy: my personal .NET utilities. Avalonia UI helpers: app hosting, dialogs (window and overlay, including color, markdown, table and web), a page system with menus and keyboard shortcuts, toasts with actions and progress, paged and sortable data tables, window and layout memory, a global exception handler, converters, responsive layout, theming and file pickers.</Description>
         <PackageTags>$(PackageTags);avalonia;dialogs;ui;toast;navigation;converters</PackageTags>
         <GeneratePackageOnBuild Condition="'$(Configuration)' != 'Release'">true</GeneratePackageOnBuild>
         <!-- ToastItem is only created from code, so its XAML isn't meant to be reachable from the runtime loader. -->

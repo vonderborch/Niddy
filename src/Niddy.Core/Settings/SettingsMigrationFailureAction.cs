@@ -17,8 +17,8 @@ public enum SettingsMigrationFailureAction
 
     /// <summary>
     /// Undo whatever the failed step changed and carry on with the next one, as if the step had nothing to do. The
-    /// rest of the upgrade, the backup and the save happen as usual. When <see cref="SettingsStore{T}.OnUpgraded"/>
-    /// fails, the settings are deserialized again without it.
+    /// rest of the upgrade, the backup and the save happen as usual. When the
+    /// <see cref="SettingsMigrations{T}.AfterUpgrade"/> step fails, the settings are deserialized again without it.
     /// </summary>
     SkipStep,
 

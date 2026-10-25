@@ -25,8 +25,8 @@ public sealed class SettingsMigrationException : Exception
 
     /// <summary>
     /// The version the failed step was upgrading to: <see cref="FromVersion"/> + 1 for a step from
-    /// <see cref="SettingsStore{T}.ConfigureMigrations"/>, or <see cref="SettingsStore{T}.Version"/> for
-    /// <see cref="SettingsStore{T}.OnUpgraded"/>.
+    /// <see cref="SettingsStore{T}.ConfigureMigrations"/>, or <see cref="SettingsStore{T}.Version"/> for the
+    /// <see cref="SettingsMigrations{T}.AfterUpgrade"/> step.
     /// </summary>
     public int ToVersion { get; }
 

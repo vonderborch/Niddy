@@ -11,8 +11,8 @@ using Niddy.Core.Web;
 namespace Niddy.Core.GitHub;
 
 /// <summary>
-/// What <see cref="GitHubIssues"/> and <see cref="GitHubReleases"/> share about talking to GitHub's REST API: its
-/// addresses and headers, reading its errors, and a cached <c>GET</c> that revalidates with <c>ETag</c>s.
+/// What the GitHub classes share about talking to GitHub's REST and GraphQL APIs: their addresses and headers, reading
+/// their errors, a cached <c>GET</c> that revalidates with <c>ETag</c>s, and a cached GraphQL query.
 /// </summary>
 internal static class GitHubApi
 {
@@ -39,6 +39,16 @@ internal static class GitHubApi
     /// <summary><paramref name="relative"/> under the client's <see cref="HttpClient.BaseAddress"/>, or api.github.com.</summary>
     public static Uri ApiAddress(HttpClient client, string relative) =>
         new(EnsureTrailingSlash(client.BaseAddress ?? DefaultApiAddress), relative);
+
+    /// <summary>
+    /// The GraphQL endpoint for the client's API address: <c>https://api.github.com/graphql</c>, or for GitHub
+    /// Enterprise Server's <c>https://host/api/v3/</c>, <c>https://host/api/graphql</c>.
+    /// </summary>
+    public static Uri GraphQLAddress(HttpClient client)
+    {
+        Uri api = EnsureTrailingSlash(client.BaseAddress ?? DefaultApiAddress);
+        return new Uri(api, api.AbsolutePath.EndsWith("/v3/", StringComparison.OrdinalIgnoreCase) ? "../graphql" : "graphql");
+    }
 
     public static Uri EnsureTrailingSlash(Uri address) =>
         address.AbsoluteUri.EndsWith('/') ? address : new Uri(address.AbsoluteUri + "/");
@@ -83,11 +93,12 @@ internal static class GitHubApi
     public static async ValueTask<GitHubResponse> GetAsync(HttpClient client, Uri address, string? token,
         string? cacheDirectory, TimeSpan cacheDuration, bool sync, CancellationToken cancellationToken)
     {
-        string? cachePath = cacheDirectory is null ? null : CachePath(cacheDirectory, address, token);
-        CacheEntry? cached = cachePath is null ? null : CacheEntry.TryLoad(cachePath, address);
+        string key = address.AbsoluteUri;
+        string? cachePath = cacheDirectory is null ? null : CachePath(cacheDirectory, key, token);
+        CacheEntry? cached = cachePath is null ? null : CacheEntry.TryLoad(cachePath, key);
         if (cached is not null && DateTimeOffset.UtcNow - cached.FetchedAt < cacheDuration)
         {
-            return GitHubResponse.Cached(cached.Body);
+            return GitHubResponse.Cached(cached.Body, cached.Link);
         }
 
         GitHubResponse response;
@@ -103,20 +114,68 @@ internal static class GitHubApi
         }
         catch (Exception ex) when (cached is not null && IsNetworkFailure(ex, cancellationToken))
         {
-            return GitHubResponse.Cached(cached.Body);
+            return GitHubResponse.Cached(cached.Body, cached.Link);
         }
 
         if (cached is not null && response.Status == HttpStatusCode.NotModified)
         {
             (cached with { FetchedAt = DateTimeOffset.UtcNow }).TrySave(cachePath!);
-            return GitHubResponse.Cached(cached.Body);
+            return GitHubResponse.Cached(cached.Body, cached.Link);
         }
 
         if (response.IsSuccess)
         {
             if (cachePath is not null)
             {
-                new CacheEntry(address.AbsoluteUri, response.ETag, DateTimeOffset.UtcNow, response.Content).TrySave(cachePath);
+                new CacheEntry(key, response.ETag, DateTimeOffset.UtcNow, response.Content, response.Link).TrySave(cachePath);
+            }
+
+            return response;
+        }
+
+        return cached is not null && (response.IsRateLimited || (int)response.Status >= 500)
+            ? GitHubResponse.Cached(cached.Body, cached.Link)
+            : response;
+    }
+
+    /// <summary>
+    /// Sends a GraphQL query. Given a <paramref name="cacheDirectory"/>, keeps successful responses on disk like
+    /// <see cref="GetAsync"/>, keyed by the query and its variables: one younger than <paramref name="cacheDuration"/>
+    /// is served without a request, and when GitHub can't be reached, is rate limiting, or fails with a 5xx, the cached
+    /// copy is served however old it is. GraphQL has no <c>ETag</c>s, so an older one is fetched again. A response with
+    /// <c>errors</c> isn't cached.
+    /// </summary>
+    /// <remarks>Network failures with nothing cached propagate, for the caller to turn into a result.</remarks>
+    public static async ValueTask<GitHubResponse> GraphQLAsync(HttpClient client, string query, JsonObject variables,
+        string? token, string? cacheDirectory, TimeSpan cacheDuration, bool sync, CancellationToken cancellationToken)
+    {
+        Uri address = GraphQLAddress(client);
+        string body = new JsonObject { ["query"] = query, ["variables"] = variables }.ToJsonString();
+        string key = $"{address.AbsoluteUri}\n{body}";
+        string? cachePath = cacheDirectory is null ? null : CachePath(cacheDirectory, key, token);
+        CacheEntry? cached = cachePath is null ? null : CacheEntry.TryLoad(cachePath, key);
+        if (cached is not null && DateTimeOffset.UtcNow - cached.FetchedAt < cacheDuration)
+        {
+            return GitHubResponse.Cached(cached.Body);
+        }
+
+        GitHubResponse response;
+        try
+        {
+            using HttpRequestMessage request = CreateRequest(HttpMethod.Post, address, client, token);
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            response = await SendAsync(client, request, sync, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (cached is not null && IsNetworkFailure(ex, cancellationToken))
+        {
+            return GitHubResponse.Cached(cached.Body);
+        }
+
+        if (response.IsSuccess)
+        {
+            if (cachePath is not null && !HasGraphQLErrors(response.Content))
+            {
+                new CacheEntry(key, null, DateTimeOffset.UtcNow, response.Content).TrySave(cachePath);
             }
 
             return response;
@@ -188,17 +247,32 @@ internal static class GitHubApi
         exception is HttpRequestException
         || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested);
 
-    private static string CachePath(string cacheDirectory, Uri address, string? token)
+    private static bool HasGraphQLErrors(string content)
     {
-        // The token is part of the key, so what one token could see is never served to another.
-        byte[] key = SHA256.HashData(Encoding.UTF8.GetBytes($"{address.AbsoluteUri}\n{token?.Trim()}"));
-        return Path.Combine(Path.GetFullPath(cacheDirectory), $"{Convert.ToHexStringLower(key.AsSpan(0, 16))}.json");
+        try
+        {
+            return JsonNode.Parse(content)?["errors"] is JsonArray { Count: > 0 };
+        }
+        catch (JsonException)
+        {
+            return true;
+        }
     }
 
-    /// <summary>A cached response: the URL it's for, its ETag, when it was last fetched or revalidated, and its body.</summary>
-    private sealed record CacheEntry(string Url, string? ETag, DateTimeOffset FetchedAt, string Body)
+    private static string CachePath(string cacheDirectory, string key, string? token)
     {
-        public static CacheEntry? TryLoad(string path, Uri address)
+        // The token is part of the key, so what one token could see is never served to another.
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{key}\n{token?.Trim()}"));
+        return Path.Combine(Path.GetFullPath(cacheDirectory), $"{Convert.ToHexStringLower(hash.AsSpan(0, 16))}.json");
+    }
+
+    /// <summary>
+    /// A cached response: the URL (or, for GraphQL, the URL and query) it's for, its ETag, when it was last fetched or
+    /// revalidated, its body, and its <c>Link</c> header (REST paging).
+    /// </summary>
+    private sealed record CacheEntry(string Url, string? ETag, DateTimeOffset FetchedAt, string Body, string? Link = null)
+    {
+        public static CacheEntry? TryLoad(string path, string key)
         {
             try
             {
@@ -211,8 +285,8 @@ internal static class GitHubApi
                 string? url = json?["url"]?.GetValue<string>();
                 string? body = json?["body"]?.GetValue<string>();
                 DateTimeOffset? fetchedAt = json?["fetchedAt"]?.GetValue<DateTimeOffset>();
-                return url == address.AbsoluteUri && body is not null && fetchedAt is DateTimeOffset at
-                    ? new CacheEntry(url, json?["etag"]?.GetValue<string>(), at, body)
+                return url == key && body is not null && fetchedAt is DateTimeOffset at
+                    ? new CacheEntry(url, json?["etag"]?.GetValue<string>(), at, body, json?["link"]?.GetValue<string>())
                     : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException
@@ -233,6 +307,7 @@ internal static class GitHubApi
                     ["etag"] = this.ETag,
                     ["fetchedAt"] = this.FetchedAt,
                     ["body"] = this.Body,
+                    ["link"] = this.Link,
                 };
                 AtomicFile.WriteAllText(path, json.ToJsonString());
             }
@@ -244,13 +319,17 @@ internal static class GitHubApi
     }
 }
 
-/// <summary>A GitHub API response, read in full, or a cached copy of one.</summary>
+/// <summary>
+/// A GitHub API response, read in full, or a cached copy of one. <see cref="Link"/> is the <c>Link</c> header, which
+/// REST lists use for paging.
+/// </summary>
 internal sealed record GitHubResponse(HttpStatusCode Status, string? ReasonPhrase, string Content, string? ETag,
-    bool IsRateLimited, bool FromCache)
+    bool IsRateLimited, bool FromCache, string? Link = null)
 {
     public bool IsSuccess => (int)this.Status is >= 200 and <= 299;
 
-    public static GitHubResponse Cached(string content) => new(HttpStatusCode.OK, "OK", content, null, false, true);
+    public static GitHubResponse Cached(string content, string? link = null) =>
+        new(HttpStatusCode.OK, "OK", content, null, false, true, link);
 
     public static GitHubResponse From(HttpResponseMessage response, string content)
     {
@@ -261,6 +340,8 @@ internal sealed record GitHubResponse(HttpStatusCode Status, string? ReasonPhras
                         && remaining.Contains("0"))
                     || response.Headers.Contains("retry-after")
                     || GitHubApi.ReadMessage(content)?.Contains("rate limit", StringComparison.OrdinalIgnoreCase) == true));
-        return new GitHubResponse(status, response.ReasonPhrase, content, response.Headers.ETag?.ToString(), rateLimited, false);
+        string? link = response.Headers.TryGetValues("Link", out IEnumerable<string>? links) ? string.Join(", ", links) : null;
+        return new GitHubResponse(status, response.ReasonPhrase, content, response.Headers.ETag?.ToString(), rateLimited,
+            false, link);
     }
 }

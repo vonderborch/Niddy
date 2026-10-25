@@ -25,13 +25,13 @@ internal sealed partial class WebDialog : DialogBase<Uri?>
         InitializeComponent();
     }
 
-    internal WebDialog(string title, Uri? source, string? html, double height, Func<Uri, bool>? closeWhen, string closeButtonText, string? openInBrowserText)
+    internal WebDialog(string title, Uri? source, string? html, Func<Uri, bool>? closeWhen, string closeButtonText, string? openInBrowserText, double? contentHeight)
         : this()
     {
         Title = title;
         _closeWhen = closeWhen;
         CurrentAddress = source;
-        PanelWebHost.Height = height;
+        SetContentHeight(PanelWebHost, contentHeight);
         ButtonClose.Content = closeButtonText;
         ButtonOpenInBrowser.Content = openInBrowserText;
         UpdateOpenInBrowser(openInBrowserText != null);

@@ -2,6 +2,8 @@
 
 Built-in dialogs cover most needs (see [Dialog](../Niddy.Avalonia/Dialogs/Dialog.md)). When one doesn't fit, subclass [`DialogBase<TResult>`](../Niddy.Avalonia/Dialogs/DialogBase.md): it's a [`DialogLayout`](../Niddy.Avalonia/Dialogs/DialogLayout.md), so you get the standard title, description and button row, and the same control works as an overlay or a window on every platform.
 
+If you only need an existing view or form shown with OK and Cancel, [`Dialog.View.Open`](../Niddy.Avalonia/Dialogs/Dialog.md#your-own-view) does that without a new class. Subclass `DialogBase` when you need your own result type, buttons or async work before closing, as here.
+
 This example is a "Connect to server" dialog. It validates its input, tests the connection before closing, and cancels the test if the user dismisses it.
 
 `ConnectDialog.axaml`:
@@ -104,7 +106,7 @@ if (connection is not null)
 - **Result type.** Make it nullable (or a record with a "cancelled" state) so `DismissResult` has something to return.
 - **`Close` is final.** Only the first call counts, so a slow test finishing after Cancel can't overwrite the result. `Close` is safe from any thread.
 - **`CanDismiss`.** Override it to return false when there's no cancel button, so Escape and back can't close the dialog without an answer.
-- **Sizing.** `maxWidth` caps the overlay card and sets the window's width. Use `windowWidth`/`windowHeight` for a fixed window size. Force a mode per call with `displayMode:`.
+- **Sizing.** `maxWidth` caps the overlay card and sets the window's width. Use `windowWidth`/`windowHeight` for a fixed window size. `windowHeight` doesn't stretch your content, so give a scrolling area its own `Height` or `MaxHeight`. Force a mode per call with `displayMode:`.
 - **No logic in the parent.** The page only gets back a `ServerConnection?`, which makes the dialog easy to reuse and to test headlessly (`new ConnectDialog(fake)`, click, then await `dialog.Result`).
 
 ## See also

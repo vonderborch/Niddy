@@ -21,10 +21,11 @@ internal sealed partial class TableDialog : DialogBase<int>
         InitializeComponent();
     }
 
-    private TableDialog(string title, string description, IList items, bool isPicker, string okButtonText, string? cancelButtonText) : this()
+    private TableDialog(string title, string description, IList items, bool isPicker, string okButtonText, string? cancelButtonText, double? contentHeight) : this()
     {
         Title = title;
         Description = description;
+        SetContentHeight(DataGridItems, contentHeight);
         _items = items;
         _isPicker = isPicker;
         DataGridItems.ItemsSource = items;
@@ -45,10 +46,11 @@ internal sealed partial class TableDialog : DialogBase<int>
         IEnumerable<TableColumn<T>>? columns,
         bool isPicker,
         string okButtonText,
-        string? cancelButtonText)
+        string? cancelButtonText,
+        double? contentHeight = null)
     {
         IList list = items as IList ?? items.ToList();
-        TableDialog dialog = new(title, description, list, isPicker, okButtonText, cancelButtonText);
+        TableDialog dialog = new(title, description, list, isPicker, okButtonText, cancelButtonText, contentHeight);
         if (columns is null)
         {
             dialog.DataGridItems.AutoGenerateColumns = true;

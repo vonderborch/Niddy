@@ -52,7 +52,7 @@ public static class JsonExtensions
     {
         /// <summary>
         /// Renames a property, keeping its value and its place in the object. If <paramref name="newName"/> is already
-        /// there, it's replaced. Handy in a <see cref="Niddy.Core.Settings.SettingsMigrations"/> upgrade step.
+        /// there, it's replaced. Handy in a <see cref="Niddy.Core.Settings.SettingsMigrations{T}"/> upgrade step.
         /// </summary>
         /// <param name="oldName">The property's current name.</param>
         /// <param name="newName">Its new name.</param>

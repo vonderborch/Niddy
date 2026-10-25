@@ -70,7 +70,7 @@ public sealed class SettingsCorruptFileEventArgs(string filePath, Exception exce
 /// {
 ///     public override int Version =&gt; 2;
 ///
-///     protected override void ConfigureMigrations(SettingsMigrations migrations) =&gt; migrations
+///     protected override void ConfigureMigrations(SettingsMigrations&lt;AppSettings&gt; migrations) =&gt; migrations
 ///         .Add(fromVersion: 0, json =&gt; json.RenameProperty("colour", "color"))   // files from before versioning
 ///         .Add(fromVersion: 1, json =&gt; json.Remove("legacyMode"));
 /// }
@@ -89,7 +89,7 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     private readonly JsonSerializerOptions _serializationOptions;
     private T? _current;
     private int? _fileVersion;
-    private SettingsMigrations? _migrations;
+    private SettingsMigrations<T>? _migrations;
     private string? _lastWritten;
     private DebouncedFileWatcher? _watcher;
 
@@ -174,7 +174,8 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     public bool BackupBeforeUpgrade { get; set; } = true;
 
     /// <summary>
-    /// What to do when an upgrade step (see <see cref="ConfigureMigrations"/>) or <see cref="OnUpgraded"/> throws:
+    /// What to do when an upgrade step (see <see cref="ConfigureMigrations"/>), including the
+    /// <see cref="SettingsMigrations{T}.AfterUpgrade"/> one, throws:
     /// <see cref="SettingsMigrationFailureAction.UseDefaults"/> (the default),
     /// <see cref="SettingsMigrationFailureAction.SkipStep"/> or <see cref="SettingsMigrationFailureAction.Throw"/>.
     /// Override <see cref="OnMigrationFailed"/> to decide per failure instead.
@@ -329,9 +330,10 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     /// Adds the upgrade steps of a versioned store: one lambda per version, each upgrading the settings JSON from that
     /// version to the next. It's called once, the first time a file is read; the base adds none.
     /// <code>
-    /// protected override void ConfigureMigrations(SettingsMigrations migrations) =&gt; migrations
+    /// protected override void ConfigureMigrations(SettingsMigrations&lt;AppSettings&gt; migrations) =&gt; migrations
     ///     .Add(fromVersion: 0, json =&gt; json.RenameProperty("colour", "color"))
-    ///     .Add(fromVersion: 1, json =&gt; json["volume"] = json["volume"]!.GetValue&lt;int&gt;() * 10);
+    ///     .Add(fromVersion: 1, json =&gt; json["volume"] = json["volume"]!.GetValue&lt;int&gt;() * 10)
+    ///     .AfterUpgrade((settings, fromVersion) =&gt; settings.Accent ??= settings.Color);
     /// </code>
     /// </summary>
     /// <remarks>
@@ -346,28 +348,18 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     /// If a step throws, <see cref="OnMigrationFailed"/> decides what happens. By default the file is treated as
     /// unreadable: <see cref="CorruptFileDetected"/> is raised with a <see cref="SettingsMigrationException"/>, the
     /// file is set aside if <see cref="OverrideCorruptFile"/> is set, and the defaults are used. Changes that are
-    /// easier on the typed settings go in <see cref="OnUpgraded"/>.
+    /// easier on the typed settings go in <see cref="SettingsMigrations{T}.AfterUpgrade"/>, which runs once after the
+    /// steps and the deserializing, before <see cref="OnLoaded"/>.
     /// </para>
     /// </remarks>
     /// <param name="migrations">Add the steps to this.</param>
-    protected virtual void ConfigureMigrations(SettingsMigrations migrations)
+    protected virtual void ConfigureMigrations(SettingsMigrations<T> migrations)
     {
     }
 
     /// <summary>
-    /// Called once after an older file has been upgraded by the steps from <see cref="ConfigureMigrations"/> and
-    /// deserialized, before
-    /// <see cref="OnLoaded"/>. Override it for upgrades that are easier on the typed settings, such as working out a
-    /// new value from others. If it throws, <see cref="OnMigrationFailed"/> decides what happens, as for a step.
-    /// </summary>
-    /// <param name="settings">The upgraded settings.</param>
-    /// <param name="fromVersion">The version the file had.</param>
-    protected virtual void OnUpgraded(T settings, int fromVersion)
-    {
-    }
-
-    /// <summary>
-    /// Called when an upgrade step or <see cref="OnUpgraded"/> throws, or a step is missing and
+    /// Called when an upgrade step (including the <see cref="SettingsMigrations{T}.AfterUpgrade"/> one) throws, or a
+    /// step is missing and
     /// <see cref="TreatMissingMigrationAsError"/> is set, to decide what happens next.
     /// Returns <see cref="MigrationFailureAction"/> by default. Override it to decide per failure (for example, skip a
     /// step that only tidies up, but give up on one that converts values) or to log the failure.
@@ -457,7 +449,7 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     private T Parse(string text)
     {
         this._fileVersion = null;
-        SettingsMigrations migrations = this.Migrations;
+        SettingsMigrations<T> migrations = this.Migrations;
         if (string.IsNullOrWhiteSpace(text))
         {
             return Prepare(CreateDefault());
@@ -500,13 +492,13 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
     }
 
     // Built on first use, so ConfigureMigrations isn't called from the constructor. Called under _gate.
-    private SettingsMigrations Migrations
+    private SettingsMigrations<T> Migrations
     {
         get
         {
             if (this._migrations is null)
             {
-                SettingsMigrations migrations = new();
+                SettingsMigrations<T> migrations = new();
                 ConfigureMigrations(migrations);
                 migrations.Lock(this.Version);
                 this._migrations = migrations;
@@ -516,7 +508,7 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
         }
     }
 
-    private (T Settings, int? UpgradedFrom) DeserializeVersioned(string text, SettingsMigrations migrations)
+    private (T Settings, int? UpgradedFrom) DeserializeVersioned(string text, SettingsMigrations<T> migrations)
     {
         JsonNode? node = JsonNode.Parse(text, this.NodeOptions, this.DocumentOptions);
         if (node is null)
@@ -573,9 +565,14 @@ public abstract class SettingsStore<T> : IDisposable where T : class, new()
             return (settings, null);
         }
 
+        if (migrations.AfterUpgradeStep is not { } afterUpgrade)
+        {
+            return (settings, fileVersion);
+        }
+
         try
         {
-            OnUpgraded(settings, fileVersion);
+            afterUpgrade(settings, fileVersion);
         }
         catch (Exception ex)
         {

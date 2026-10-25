@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 
 namespace Niddy.Avalonia.Dialogs.BuiltIn;
@@ -10,14 +11,18 @@ internal sealed partial class MarkdownDialog : DialogBase<bool>
         InitializeComponent();
     }
 
-    internal MarkdownDialog(string title, string markdown, string okButtonText, string? cancelButtonText) : this()
+    internal MarkdownDialog(string title, string markdown, string okButtonText, string? cancelButtonText, double? contentHeight = null) : this()
     {
         Title = title;
         MarkdownViewer.Markdown = markdown;
+        SetContentHeight(MarkdownViewer, contentHeight);
         ButtonOk.Content = okButtonText;
         ButtonCancel.Content = cancelButtonText;
         ButtonCancel.IsVisible = cancelButtonText is not null;
     }
+
+    /// <summary>The Markdown view.</summary>
+    internal Control Viewer => MarkdownViewer;
 
     /// <summary>The Markdown shown.</summary>
     internal string? Markdown => MarkdownViewer.Markdown;

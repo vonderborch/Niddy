@@ -13,6 +13,9 @@ internal interface IDialog
     /// <summary>The title to use when the dialog is shown in a window.</summary>
     string? WindowTitle { get; }
 
+    /// <summary>Whether the dialog takes all the room its host has, rather than fitting its content and scrolling.</summary>
+    bool Fill { get; }
+
     /// <summary>
     ///     Dismisses the dialog as its cancel button would. Returns false if the dialog can't be
     ///     dismissed that way (see <see cref="DialogBase{TResult}.CanDismiss"/>) unless <paramref name="force"/> is set.
@@ -48,6 +51,8 @@ public abstract class DialogBase<TResult> : DialogLayout, IDialog
     Task IDialog.Completion => _result.Task;
 
     string? IDialog.WindowTitle => WindowTitle ?? Title;
+
+    bool IDialog.Fill => FillHeight;
 
     /// <summary>
     ///     Whether the dialog can be dismissed without a button (window close button, Escape, platform

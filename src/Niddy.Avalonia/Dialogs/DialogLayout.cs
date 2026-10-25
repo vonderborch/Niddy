@@ -38,9 +38,26 @@ public class DialogLayout : UserControl
     public static readonly StyledProperty<IBrush?> TitleForegroundProperty =
         AvaloniaProperty.Register<DialogLayout, IBrush?>(nameof(TitleForeground));
 
-    private readonly TextBlock _title = new() { FontSize = 20, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly TextBlock _description = new() { FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly WrapPanel _buttons = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8 };
+    // The gaps are margins rather than panel spacing, so a hidden part takes no space.
+    private const double Gap = 12;
+
+    private readonly TextBlock _title = new()
+    {
+        FontSize = 20, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap, IsVisible = false, Margin = new Thickness(0, 0, 0, Gap),
+    };
+
+    private readonly TextBlock _description = new()
+    {
+        FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false, Margin = new Thickness(0, 0, 0, Gap),
+    };
+
+    private readonly WrapPanel _buttons = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(0, Gap, 0, 0),
+    };
+
+    private RowDefinition? _contentRow;
+    private bool _fillHeight;
 
     /// <summary>Creates an empty layout.</summary>
     public DialogLayout()
@@ -59,11 +76,16 @@ public class DialogLayout : UserControl
                 [!ContentPresenter.ContentProperty] = layout[!ContentProperty],
                 [!ContentPresenter.ContentTemplateProperty] = layout[!ContentTemplateProperty],
             };
-            return new StackPanel
+            layout._contentRow = new RowDefinition(layout.ContentRowHeight);
+            Grid grid = new()
             {
-                Spacing = 12,
+                RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), layout._contentRow, new RowDefinition(GridLength.Auto) },
                 Children = { layout._title, layout._description, presenter, layout._buttons },
             };
+            Grid.SetRow(layout._description, 1);
+            Grid.SetRow(presenter, 2);
+            Grid.SetRow(layout._buttons, 3);
+            return grid;
         });
         _buttons.Children.CollectionChanged += (_, _) => _buttons.IsVisible = _buttons.Children.Count > 0;
         _buttons.IsVisible = false;
@@ -93,6 +115,26 @@ public class DialogLayout : UserControl
     /// <summary>The buttons shown along the bottom, right-aligned. The row is hidden while empty.</summary>
     public Controls Buttons => _buttons.Children;
 
+    /// <summary>
+    ///     Whether the content takes all the height left over by the title, description and buttons, when the host gives
+    ///     the dialog a fixed height. False (the default) sizes the content to fit. Hosts fill the space they have for a
+    ///     dialog with this set, rather than scrolling it.
+    /// </summary>
+    internal bool FillHeight
+    {
+        get => _fillHeight;
+        set
+        {
+            _fillHeight = value;
+            if (_contentRow is not null)
+            {
+                _contentRow.Height = ContentRowHeight;
+            }
+        }
+    }
+
+    private GridLength ContentRowHeight => _fillHeight ? GridLength.Star : GridLength.Auto;
+
     /// <inheritdoc />
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -116,6 +158,27 @@ public class DialogLayout : UserControl
                 _title.ClearValue(TextBlock.ForegroundProperty);
             }
         }
+    }
+
+    /// <summary>
+    ///     Gives a built-in dialog's scrolling area the height a caller asked for, in place of its default maximum.
+    ///     Null leaves the default: the area fits its content up to that maximum, then scrolls.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="height"/> isn't a positive, finite number.</exception>
+    internal static void SetContentHeight(Control area, double? height)
+    {
+        if (height is not { } value)
+        {
+            return;
+        }
+
+        if (!double.IsFinite(value) || value <= 0)
+        {
+            throw new ArgumentOutOfRangeException("contentHeight", value, "The content height must be a positive, finite number.");
+        }
+
+        area.MaxHeight = double.PositiveInfinity;
+        area.Height = value;
     }
 
     private static void SetText(TextBlock block, string? text)

@@ -7,9 +7,13 @@ namespace Niddy.Avalonia.Dialogs;
 /// <summary>
 ///     Shows a dialog in a modal window (desktop only). The window sizes its height to the dialog unless a
 ///     fixed height is given, and its close button dismisses the dialog as the dialog's cancel button would.
+///     A filling dialog gets a resizable window instead, and fills it rather than scrolling.
 /// </summary>
 internal sealed class DialogWindow : Window
 {
+    /// <summary>How much of its owner a filling dialog's window takes, when no size is given.</summary>
+    private const double FillShare = 0.8;
+
     private readonly IDialog _dialog;
     private bool _isClosed;
 
@@ -27,14 +31,20 @@ internal sealed class DialogWindow : Window
             SizeToContent = SizeToContent.Height;
         }
 
-        CanResize = false;
+        CanResize = dialog.Fill;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Content = new ScrollViewer
+        Border padded = new() { Padding = new Thickness(20), Child = content };
+        if (dialog.Fill)
         {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = new Border { Padding = new Thickness(20), Child = content },
-        };
+            MinWidth = 300;
+            MinHeight = 200;
+            Content = padded;
+        }
+        else
+        {
+            Content = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = padded };
+        }
 
         Closing += OnClosing;
         Closed += (_, _) => _isClosed = true;
@@ -42,6 +52,13 @@ internal sealed class DialogWindow : Window
 
     internal static async Task ShowAsync(Window owner, Control content, IDialog dialog, double width, double? height = null)
     {
+        if (dialog.Fill)
+        {
+            // Without a size of its own, a filling dialog starts at most of its owner.
+            width = double.IsFinite(width) ? width : owner.Bounds.Width * FillShare;
+            height ??= owner.Bounds.Height * FillShare;
+        }
+
         DialogWindow window = new(content, dialog, width, height);
 
         // Long content scrolls rather than growing the window past its owner.

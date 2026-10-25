@@ -349,6 +349,10 @@ public static class Dialog
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the list, which scrolls inside it. By default it fits the content, up to 200, then
+        ///     scrolls. Must be positive.
+        /// </param>
         /// <returns>The selected item, or default if the dialog was cancelled or nothing was selected.</returns>
         public static async Task<T?> Open<T>(
             Control parent,
@@ -362,13 +366,14 @@ public static class Dialog
             double maxWidth = 500,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         )
         {
             List<T> itemList = items.ToList();
             SelectionDialog dialog = new(
                 title, description, itemList.Select(displaySelector).ToList(),
-                okButtonText, cancelButtonText, showCancelButton
+                okButtonText, cancelButtonText, showCancelButton, contentHeight
             );
 
             int selectedIndex = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
@@ -398,6 +403,10 @@ public static class Dialog
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the list of fields, which scrolls inside it. By default it fits the content, up to 300, then
+        ///     scrolls. Must be positive.
+        /// </param>
         /// <returns>Each label mapped to its entered value, or null if the dialog was cancelled.</returns>
         public static Task<Dictionary<string, string>?> Open(
             Control parent,
@@ -410,10 +419,11 @@ public static class Dialog
             double maxWidth = 500,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         ) => Show(
             parent,
-            new MultiInputDialog(title, description, fields, okButtonText, cancelButtonText, showCancelButton),
+            new MultiInputDialog(title, description, fields, okButtonText, cancelButtonText, showCancelButton, contentHeight),
             maxWidth,
             displayMode,
             windowWidth,
@@ -448,6 +458,10 @@ public static class Dialog
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
         /// <param name="copyDetailsText">The text for the button that copies the full exception to the clipboard, or null to hide it.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the exception details, which scrolls inside it. By default it fits the content, up to 240, then
+        ///     scrolls. Must be positive.
+        /// </param>
         public static Task Open(
             Control parent,
             string title,
@@ -464,13 +478,14 @@ public static class Dialog
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
             double? windowHeight = null,
-            string? copyDetailsText = "Copy Details"
+            string? copyDetailsText = "Copy Details",
+            double? contentHeight = null
         ) => Show(
             parent,
             new ExceptionDialog(
                 title, description, exception, reportIssueLink,
                 reportIssueText, ignoreAndContinueText, exitProgramText,
-                showReportIssueButton, showIgnoreAndContinueButton, showExitProgramButton, copyDetailsText
+                showReportIssueButton, showIgnoreAndContinueButton, showExitProgramButton, copyDetailsText, contentHeight
             ),
             maxWidth,
             displayMode,
@@ -542,6 +557,10 @@ public static class Dialog
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the Markdown view, which scrolls inside it. By default it fits the content, up to 420, then
+        ///     scrolls. Must be positive.
+        /// </param>
         /// <returns>True if OK was clicked (or, with no Cancel button, the dialog was dismissed); false if cancelled.</returns>
         public static Task<bool> Open(
             Control parent,
@@ -552,8 +571,9 @@ public static class Dialog
             double maxWidth = 640,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
-        ) => Show(parent, new MarkdownDialog(title, markdown, okButtonText, cancelButtonText), maxWidth, displayMode, windowWidth, windowHeight);
+            double? windowHeight = null,
+            double? contentHeight = null
+        ) => Show(parent, new MarkdownDialog(title, markdown, okButtonText, cancelButtonText, contentHeight), maxWidth, displayMode, windowWidth, windowHeight);
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -575,6 +595,10 @@ public static class Dialog
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the table, which scrolls inside it. By default it fits the content, up to 400, then
+        ///     scrolls. Must be positive.
+        /// </param>
         public static Task Open<T>(
             Control parent,
             string title,
@@ -585,10 +609,11 @@ public static class Dialog
             double maxWidth = 800,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         ) => Show(
             parent,
-            TableDialog.Create(title, description, items.ToList(), columns, isPicker: false, okButtonText, cancelButtonText: null),
+            TableDialog.Create(title, description, items.ToList(), columns, isPicker: false, okButtonText, cancelButtonText: null, contentHeight),
             maxWidth,
             displayMode,
             windowWidth,
@@ -608,6 +633,10 @@ public static class Dialog
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        ///     A fixed height for the table, which scrolls inside it. By default it fits the content, up to 400, then
+        ///     scrolls. Must be positive.
+        /// </param>
         /// <returns>The picked item, or default if the dialog was cancelled.</returns>
         public static async Task<T?> Pick<T>(
             Control parent,
@@ -620,11 +649,12 @@ public static class Dialog
             double maxWidth = 800,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         )
         {
             List<T> itemList = items.ToList();
-            TableDialog dialog = TableDialog.Create(title, description, itemList, columns, isPicker: true, okButtonText, cancelButtonText);
+            TableDialog dialog = TableDialog.Create(title, description, itemList, columns, isPicker: true, okButtonText, cancelButtonText, contentHeight);
             int index = await Show(parent, dialog, maxWidth, displayMode, windowWidth, windowHeight);
             return index >= 0 && index < itemList.Count ? itemList[index] : default;
         }
@@ -648,32 +678,32 @@ public static class Dialog
         /// Closes the dialog when the page navigates to an address this returns true for, e.g. a sign-in redirect. The
         /// navigation is cancelled and the address returned.
         /// </param>
-        /// <param name="height">The height of the web view.</param>
         /// <param name="closeButtonText">The text for the Close button.</param>
         /// <param name="openInBrowserText">The text for a button that opens the page in the browser; null hides it.</param>
         /// <param name="maxWidth">The maximum width of the overlay card, and the window's width unless <paramref name="windowWidth"/> is set.</param>
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">The height of the web view. By default it's 560. Must be positive.</param>
         /// <returns>The address shown when the dialog closed, or the one that matched <paramref name="closeWhen"/>.</returns>
         public static Task<Uri?> Open(
             Control parent,
             string title,
             Uri address,
             Func<Uri, bool>? closeWhen = null,
-            double height = 560,
             string closeButtonText = "Close",
             string? openInBrowserText = "Open in Browser",
             double maxWidth = 900,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         )
         {
             ArgumentNullException.ThrowIfNull(address);
             return Show(
                 parent,
-                new WebDialog(title, address, html: null, height, closeWhen, closeButtonText, openInBrowserText),
+                new WebDialog(title, address, html: null, closeWhen, closeButtonText, openInBrowserText, contentHeight),
                 maxWidth,
                 displayMode,
                 windowWidth,
@@ -687,12 +717,12 @@ public static class Dialog
         /// <param name="html">The HTML document to show.</param>
         /// <param name="baseAddress">The address relative links in <paramref name="html"/> resolve against.</param>
         /// <param name="closeWhen">Closes the dialog when a link to an address this returns true for is followed.</param>
-        /// <param name="height">The height of the web view.</param>
         /// <param name="closeButtonText">The text for the Close button.</param>
         /// <param name="maxWidth">The maximum width of the overlay card, and the window's width unless <paramref name="windowWidth"/> is set.</param>
         /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
         /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
         /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">The height of the web view. By default it's 560. Must be positive.</param>
         /// <returns>The address shown when the dialog closed, or null if no link was followed.</returns>
         public static Task<Uri?> OpenHtml(
             Control parent,
@@ -700,19 +730,170 @@ public static class Dialog
             string html,
             Uri? baseAddress = null,
             Func<Uri, bool>? closeWhen = null,
-            double height = 560,
             string closeButtonText = "Close",
             double maxWidth = 900,
             DialogDisplayMode? displayMode = null,
             double? windowWidth = null,
-            double? windowHeight = null
+            double? windowHeight = null,
+            double? contentHeight = null
         ) => Show(
             parent,
-            new WebDialog(title, baseAddress, html, height, closeWhen, closeButtonText, openInBrowserText: null),
+            new WebDialog(title, baseAddress, html, closeWhen, closeButtonText, openInBrowserText: null, contentHeight),
             maxWidth,
             displayMode,
             windowWidth,
             windowHeight
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    //  View
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Dialogs that show your own control, or a <see cref="global::Avalonia.Controls.Window"/>'s content, under the
+    /// standard title and description, with OK and Cancel buttons.
+    /// </summary>
+    public static class View
+    {
+        /// <summary>The padding around a dialog's content, on each side.</summary>
+        private const double DialogPadding = 20;
+
+        /// <summary>
+        /// Shows a control as a dialog. A <see cref="global::Avalonia.Controls.Window"/> isn't opened: its content is
+        /// shown in the dialog, with its <c>DataContext</c>, and goes back to the window when the dialog closes.
+        /// </summary>
+        /// <param name="parent">A control in the visual tree the dialog belongs to.</param>
+        /// <param name="view">
+        /// The control to show, which mustn't already be in the visual tree; it's taken out of the dialog when it closes,
+        /// so it can be shown again. Or a window that isn't open, whose content is shown. Its own <c>Styles</c> and
+        /// <c>Resources</c> don't come with it: put them on its content instead.
+        /// </param>
+        /// <param name="title">The title of the dialog. Null (the default) uses a window's <c>Title</c>, and is empty for a control.</param>
+        /// <param name="description">The body text above the view, or null for none.</param>
+        /// <param name="okButtonText">The text for the OK button, or null to hide it.</param>
+        /// <param name="cancelButtonText">
+        /// The text for the Cancel button, or null to hide it. Without it, the dialog can't be dismissed without a button.
+        /// </param>
+        /// <param name="canAccept">
+        /// Called when OK is clicked: false keeps the dialog open, e.g. while a field is invalid. Null (the default) always closes.
+        /// </param>
+        /// <param name="maxWidth">
+        /// The maximum width of the overlay card, and the window's width unless <paramref name="windowWidth"/> is set. Null (the
+        /// default) uses a window's <c>Width</c> plus the dialog's padding, or 500. With <paramref name="fill"/>, null is no limit.
+        /// </param>
+        /// <param name="displayMode">Overrides <see cref="DefaultMode"/> for this call.</param>
+        /// <param name="windowWidth">A fixed width for the window. Ignored in overlays.</param>
+        /// <param name="windowHeight">A fixed height for the window; by default it fits the content. Ignored in overlays.</param>
+        /// <param name="contentHeight">
+        /// A fixed height for the view, e.g. for a <c>DataGrid</c>, which needs one to scroll inside. Null (the default) uses a
+        /// window's <c>Height</c>; otherwise <paramref name="fit"/> decides. Must be positive, and can't be combined with
+        /// <paramref name="fill"/>.
+        /// </param>
+        /// <param name="fit">
+        /// How the view fits its area: stretched across it (the default), centered, scrolling, or scaled. See <see cref="ViewFit"/>.
+        /// </param>
+        /// <param name="fill">
+        /// True makes the dialog as big as it can be, and gives the view all the height between the description and the buttons:
+        /// the overlay card fills its host (less its margin), and the window is resizable, starting at 80% of its owner's size
+        /// unless <paramref name="windowWidth"/>, <paramref name="windowHeight"/> or <paramref name="maxWidth"/> say otherwise.
+        /// A window's <c>Width</c> and <c>Height</c> aren't used. For a <c>DataGrid</c>, an editor or a map.
+        /// </param>
+        /// <returns>True if OK was clicked, false if the dialog was cancelled or dismissed.</returns>
+        /// <exception cref="InvalidOperationException">The window is open, or the control is already in the visual tree.</exception>
+        /// <exception cref="ArgumentException"><paramref name="contentHeight"/> is set as well as <paramref name="fill"/>.</exception>
+        public static async Task<bool> Open(
+            Control parent,
+            Control view,
+            string? title = null,
+            string? description = null,
+            string? okButtonText = "OK",
+            string? cancelButtonText = "Cancel",
+            Func<bool>? canAccept = null,
+            double? maxWidth = null,
+            DialogDisplayMode? displayMode = null,
+            double? windowWidth = null,
+            double? windowHeight = null,
+            double? contentHeight = null,
+            ViewFit fit = ViewFit.Stretch,
+            bool fill = false
+        )
+        {
+            ArgumentNullException.ThrowIfNull(view);
+            if (fill && contentHeight is not null)
+            {
+                throw new ArgumentException("A filling dialog gives the view all the height it has, so it can't take a contentHeight.",
+                    nameof(contentHeight));
+            }
+
+            global::Avalonia.Controls.Window? window = view as global::Avalonia.Controls.Window;
+            if (window is { IsVisible: true })
+            {
+                throw new InvalidOperationException("The window is open. Close it, or pass a window that hasn't been shown.");
+            }
+
+            if (window is null && view.Parent is not null)
+            {
+                throw new InvalidOperationException("The view is already in the visual tree. Pass a control that isn't shown anywhere else.");
+            }
+
+            if (window is not null)
+            {
+                title ??= window.Title;
+                if (!fill)
+                {
+                    maxWidth ??= double.IsFinite(window.Width) ? window.Width + 2 * DialogPadding : null;
+                    contentHeight ??= double.IsFinite(window.Height) ? window.Height : null;
+                }
+            }
+
+            // Built before the content moves, so a bad argument leaves the window as it was.
+            ViewDialog dialog = new(title, description, okButtonText, cancelButtonText, canAccept, contentHeight, fit, fill);
+            object? content = view;
+            if (window is not null)
+            {
+                content = window.Content;
+                window.Content = null;
+                dialog.Body.ContentTemplate = window.ContentTemplate;
+                if (window.DataContext is { } dataContext)
+                {
+                    // The content would otherwise take the DataContext of wherever the dialog shows.
+                    dialog.Body.DataContext = dataContext;
+                }
+            }
+
+            try
+            {
+                dialog.Body.Content = content;
+                return await Show(parent, dialog, maxWidth ?? (fill ? double.PositiveInfinity : 500), displayMode, windowWidth, windowHeight);
+            }
+            finally
+            {
+                dialog.Release();
+                if (window is not null)
+                {
+                    window.Content = content;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Closes the <see cref="Open"/> dialog a control is in, e.g. from a double-click or the view's own button. It doesn't
+        /// call <c>canAccept</c>.
+        /// </summary>
+        /// <param name="control">The view, or any control inside it.</param>
+        /// <param name="accepted">What <see cref="Open"/> returns: true as for OK, false as for Cancel.</param>
+        /// <returns>False if the control isn't in an <see cref="Open"/> dialog.</returns>
+        public static bool Close(Control control, bool accepted = true)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            if (ViewDialog.Find(control) is not { } dialog)
+            {
+                return false;
+            }
+
+            dialog.CloseWith(accepted);
+            return true;
+        }
     }
 }

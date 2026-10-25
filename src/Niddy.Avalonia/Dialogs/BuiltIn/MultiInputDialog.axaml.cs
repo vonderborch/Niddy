@@ -10,6 +10,9 @@ internal sealed partial class MultiInputDialog : DialogBase<Dictionary<string, s
 {
     private readonly List<(string Label, TextBox TextBox)> _fields = new();
 
+    /// <summary>The scrolling area holding the fields.</summary>
+    internal ScrollViewer FieldsArea => ScrollViewerFields;
+
     protected override bool CanDismiss => ButtonCancel.IsVisible;
 
     protected override Dictionary<string, string>? DismissResult => null;
@@ -21,11 +24,12 @@ internal sealed partial class MultiInputDialog : DialogBase<Dictionary<string, s
         InitializeComponent();
     }
 
-    internal MultiInputDialog(string title, string description, IEnumerable<(string Label, string DefaultValue)> fields, string okButtonText, string cancelButtonText, bool showCancelButton)
+    internal MultiInputDialog(string title, string description, IEnumerable<(string Label, string DefaultValue)> fields, string okButtonText, string cancelButtonText, bool showCancelButton, double? contentHeight = null)
         : this()
     {
         Title = title;
         Description = description;
+        SetContentHeight(ScrollViewerFields, contentHeight);
         ButtonOk.Content = okButtonText;
         ButtonCancel.Content = cancelButtonText;
         ButtonCancel.IsVisible = showCancelButton;

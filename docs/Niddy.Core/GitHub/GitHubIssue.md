@@ -18,6 +18,7 @@ What goes in a GitHub issue: a title, a Markdown body, labels and so on, plus op
 | `GitHubIssueReporter? Reporter` | Who is reporting it, shown in a "Reported by" line. |
 | `IReadOnlyDictionary<string, string>? Details` | Extra name/value pairs, shown as a table. |
 | `bool IncludeSystemInfo` | Adds rows for the app (entry assembly name and informational version), the OS and its version, the architecture and the .NET runtime. No machine name, user name or paths. |
+| `string? Fingerprint` | Identifies the problem, so repeat reports go to one issue instead of opening duplicates. See [Fingerprint](#fingerprint). Null (the default) always opens a new issue; `FromException` sets it. |
 | `static GitHubIssue Bug(string title, string? body = null)` | With the `bug` label. |
 | `static GitHubIssue FeatureRequest(string title, string? body = null)` | With the `enhancement` label. |
 | `static GitHubIssue Question(string title, string? body = null)` | With the `question` label. |
@@ -35,12 +36,19 @@ A crash report in one call:
 - **Body:** `body`, if given, e.g. what the user was doing.
 - **Sections:** one expanded code section, "Exception", with `exception.ToString()`: the type, message and stack trace of the exception and every inner exception.
 - The `bug` label, and `IncludeSystemInfo` on.
+- **Fingerprint:** the type of the real cause and the method it was thrown from, e.g. `System.IO.IOException at MyApp.Saver.Save(String path)`. The message, file and line number are left out, so the same crash matches however its message varies (a different path, say) and across builds. An exception that was never thrown has no stack trace and uses the first line of its message instead. Set `Fingerprint = null` to always open a new issue, or your own value to group differently.
 
 Exception messages can contain paths from the user's machine, such as a home folder with their user name in it. Before sending to a public repository, show the user `FormatBody()` or use `OpenInBrowser`, where they see everything before submitting.
 
+### Fingerprint
+
+When an issue has a `Fingerprint`, [`GitHubIssues.CreateAsync`](GitHubIssues.md#duplicates) looks for an open issue with the same one before creating it. If there is one, the report is added to it as a comment instead, so a crash that hits a thousand users makes one issue with a thousand comments rather than a thousand issues.
+
+Any text works: `"export-crash"`, an error code, `$"{nameof(Exporter)}:{format}"`. Only a hash of it goes in the issue, as a hidden HTML comment at the end of the body, e.g. `<!-- fingerprint: nfp3f9a0c1b2d4e5f60 -->`, so it can hold details you wouldn't publish. Two issues match only when their fingerprints are exactly the same text (after trimming); a blank one counts as none.
+
 ### FormatBody
 
-With no sections, reporter, details or system info, it's just `Body` (trailing whitespace trimmed). Otherwise it's the body, the sections, a rule, then the reporter line and the table:
+With no sections, reporter, details, system info or fingerprint, it's just `Body` (trailing whitespace trimmed). Otherwise it's the body, the sections, a rule, then the reporter line and the table, and last the fingerprint marker:
 
 ````markdown
 The app crashed when I pressed Save.
@@ -72,9 +80,11 @@ System.IO.IOException: Disk full
 | OS | MacOS 15.1.0 |
 | Architecture | Arm64 |
 | Runtime | .NET 10.0.0 |
+
+<!-- fingerprint: nfp3f9a0c1b2d4e5f60 -->
 ````
 
-**Length.** GitHub limits a body to 65,536 characters, and a browser URL holds far less. When `GitHubIssues` has to cut, it cuts sections first, sharing the space evenly so short ones stay whole and each cut one is marked "… (cut)". Only if that isn't enough does it cut `Body`. The reporter and details are always kept. `FormatBody()` itself never cuts.
+**Length.** GitHub limits a body to 65,536 characters, and a browser URL holds far less. When `GitHubIssues` has to cut, it cuts sections first, sharing the space evenly so short ones stay whole and each cut one is marked "… (cut)". Only if that isn't enough does it cut `Body`. The reporter, details and fingerprint marker are always kept. `FormatBody()` itself never cuts.
 
 `Details` come first, in the dictionary's order, then the system info. `|` and `\` in names and values are escaped, and line breaks become `<br>`, so a value can't break the table.
 
@@ -109,6 +119,9 @@ string preview = issue.FormatBody();   // show it to the user before sending
 // A crash report, plus the end of the log
 GitHubIssue crash = GitHubIssue.FromException(exception, body: "I was exporting a PDF.");
 crash = crash with { Sections = [.. crash.Sections, GitHubIssueSection.FromLatestLogFile(paths.Logs)] };
+
+// Group reports of a known failure into one issue
+GitHubIssue failed = GitHubIssue.Bug("Sync failed", error.Message) with { Fingerprint = $"sync:{error.Code}" };
 ```
 
 ## See also

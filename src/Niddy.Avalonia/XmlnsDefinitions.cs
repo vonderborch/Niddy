@@ -12,5 +12,6 @@ using Avalonia.Metadata;
 [assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.Layout")]
 [assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.PageSystem")]
 [assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.State")]
+[assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.Tables")]
 [assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.Theme")]
 [assembly: XmlnsDefinition("https://github.com/vonderborch/Niddy", "Niddy.Avalonia.Toasts")]

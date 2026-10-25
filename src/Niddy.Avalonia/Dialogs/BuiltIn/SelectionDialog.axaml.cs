@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 
 namespace Niddy.Avalonia.Dialogs.BuiltIn;
@@ -16,16 +17,21 @@ internal sealed partial class SelectionDialog : DialogBase<int>
         IReadOnlyList<string> items,
         string okButtonText,
         string cancelButtonText,
-        bool showCancelButton
+        bool showCancelButton,
+        double? contentHeight = null
     ) : this()
     {
         Title = title;
         Description = description;
         ListBoxItems.ItemsSource = items;
+        SetContentHeight(ListBoxItems, contentHeight);
         ButtonOk.Content = okButtonText;
         ButtonCancel.Content = cancelButtonText;
         ButtonCancel.IsVisible = showCancelButton;
     }
+
+    /// <summary>The list.</summary>
+    internal ListBox List => ListBoxItems;
 
     protected override bool CanDismiss => ButtonCancel.IsVisible;
 

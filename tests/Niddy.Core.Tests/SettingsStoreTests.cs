@@ -156,7 +156,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         public int ThrowOnStep { get; init; } = -1;
 
-        public bool ThrowOnUpgraded { get; init; }
+        public bool ThrowAfterUpgrade { get; init; }
 
         public List<SettingsMigrationException> Failures { get; } = [];
 
@@ -168,9 +168,10 @@ public sealed class SettingsStoreTests : IDisposable
 
         public override int Version => 2;
 
-        protected override void ConfigureMigrations(SettingsMigrations migrations) => migrations
+        protected override void ConfigureMigrations(SettingsMigrations<VersionedSettings> migrations) => migrations
             .Add(fromVersion: 0, json => Step(json, 0, () => json.RenameProperty("colour", "color")))
-            .Add(fromVersion: 1, json => Step(json, 1, () => json["volume"] = json["volume"]!.GetValue<int>() * 10));
+            .Add(fromVersion: 1, json => Step(json, 1, () => json["volume"] = json["volume"]!.GetValue<int>() * 10))
+            .AfterUpgrade(AfterUpgrade);
 
         private void Step(JsonObject json, int fromVersion, Action change)
         {
@@ -184,11 +185,11 @@ public sealed class SettingsStoreTests : IDisposable
             change();
         }
 
-        protected override void OnUpgraded(VersionedSettings settings, int fromVersion)
+        private void AfterUpgrade(VersionedSettings settings, int fromVersion)
         {
             UpgradedFrom = fromVersion;
             settings.Loudness = settings.Volume / 10;
-            if (ThrowOnUpgraded)
+            if (ThrowAfterUpgrade)
             {
                 settings.Color = "Half-done";
                 throw new InvalidOperationException("boom");
@@ -357,7 +358,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         protected override string VersionPropertyName => "version";
 
-        protected override void ConfigureMigrations(SettingsMigrations migrations) =>
+        protected override void ConfigureMigrations(SettingsMigrations<VersionedSettings> migrations) =>
             migrations.Add(fromVersion: 2, json => json.RenameProperty("colour", "color"));
     }
 
@@ -383,7 +384,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         public List<SettingsMigrationException> Failures { get; } = [];
 
-        protected override void ConfigureMigrations(SettingsMigrations migrations) => migrations
+        protected override void ConfigureMigrations(SettingsMigrations<VersionedSettings> migrations) => migrations
             .Add(fromVersion: 1, json =>
             {
                 Steps.Add(1);
@@ -469,16 +470,16 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(old, File.ReadAllText(FilePath));
     }
 
-    private sealed class ConfiguredStore(string path, int version, Action<SettingsMigrations> configure)
+    private sealed class ConfiguredStore(string path, int version, Action<SettingsMigrations<VersionedSettings>> configure)
         : SettingsStore<VersionedSettings>(path)
     {
         public int Configured { get; private set; }
 
-        public SettingsMigrations? Migrations { get; private set; }
+        public SettingsMigrations<VersionedSettings>? Migrations { get; private set; }
 
         public override int Version => version;
 
-        protected override void ConfigureMigrations(SettingsMigrations migrations)
+        protected override void ConfigureMigrations(SettingsMigrations<VersionedSettings> migrations)
         {
             Configured++;
             Migrations = migrations;
@@ -510,6 +511,45 @@ public sealed class SettingsStoreTests : IDisposable
         _ = store.Current;
 
         Assert.Throws<InvalidOperationException>(() => store.Migrations!.Add(0, _ => { }));
+        Assert.Throws<InvalidOperationException>(() => store.Migrations!.AfterUpgrade((_, _) => { }));
+    }
+
+    [Fact]
+    public void Migrations_AllowOneAfterUpgradeStep()
+    {
+        File.WriteAllText(FilePath, "{}");
+        ConfiguredStore store = new(FilePath, 1, m => m.AfterUpgrade((_, _) => { }).AfterUpgrade((_, _) => { }));
+
+        Assert.Throws<InvalidOperationException>(() => store.Current);
+    }
+
+    [Fact]
+    public void Migrations_AfterUpgradeWithoutAVersionThrows()
+    {
+        const string old = """{ "colour": "Blue" }""";
+        File.WriteAllText(FilePath, old);
+        ConfiguredStore store = new(FilePath, 0, m => m.AfterUpgrade((s, _) => s.Color = "Red"));
+
+        Assert.Throws<InvalidOperationException>(() => store.Current);
+        Assert.Equal(old, File.ReadAllText(FilePath));
+    }
+
+    [Fact]
+    public void Migrations_AfterUpgradeRunsOnceWithTheFileVersion()
+    {
+        File.WriteAllText(FilePath, """{ "$version": 1, "color": "Blue" }""");
+        List<(string Color, int From)> calls = [];
+        ConfiguredStore store = new(FilePath, 3, m => m.AfterUpgrade((s, from) =>
+        {
+            calls.Add((s.Color, from));
+            s.Color = "Red";
+        }));
+
+        Assert.Equal("Red", store.Current.Color);
+        store.Load();   // now at version 3, so it doesn't run again
+
+        Assert.Equal([("Blue", 1)], calls);
+        Assert.Equal("Red", store.Current.Color);
     }
 
     [Fact]
@@ -583,12 +623,12 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Versioned_SkipStepOnOnUpgradedDeserializesAgain()
+    public void Versioned_SkipStepOnAfterUpgradeDeserializesAgain()
     {
         File.WriteAllText(FilePath, """{ "colour": "Blue", "volume": 3 }""");
         VersionedStore store = new(FilePath)
         {
-            ThrowOnUpgraded = true,
+            ThrowAfterUpgrade = true,
             MigrationFailureAction = SettingsMigrationFailureAction.SkipStep,
         };
 

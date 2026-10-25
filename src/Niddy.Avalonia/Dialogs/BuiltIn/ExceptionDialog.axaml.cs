@@ -19,6 +19,9 @@ internal sealed partial class ExceptionDialog : DialogBase<bool>
 
     protected override bool DismissResult => false;
 
+    /// <summary>The scrolling area holding the details.</summary>
+    internal ScrollViewer DetailsArea => ScrollViewerDetails;
+
     /// <summary>The full exception text copied by Copy Details, including inner exceptions.</summary>
     internal string Details => _details;
 
@@ -27,9 +30,10 @@ internal sealed partial class ExceptionDialog : DialogBase<bool>
         InitializeComponent();
     }
 
-    internal ExceptionDialog(string title, string description, Exception exception, string reportIssueLink, string reportIssueText, string ignoreAndContinueText, string exitProgramText, bool showReportIssueButton, bool showIgnoreAndContinueButton, bool? showExitProgramButton, string? copyDetailsText = "Copy Details")
+    internal ExceptionDialog(string title, string description, Exception exception, string reportIssueLink, string reportIssueText, string ignoreAndContinueText, string exitProgramText, bool showReportIssueButton, bool showIgnoreAndContinueButton, bool? showExitProgramButton, string? copyDetailsText = "Copy Details", double? contentHeight = null)
         : this()
     {
+        SetContentHeight(ScrollViewerDetails, contentHeight);
         _details = exception.ToString();
         _reportIssueLink = reportIssueLink;
         Title = title;

@@ -7,7 +7,7 @@ This one file tells you how to use the whole library in an app. It's written for
 | Package | Use it for | Namespaces |
 |---|---|---|
 | `Niddy.Core` | Anything (no UI): results, settings, logging, paths, files, archives, JSON, retry, secure storage, threading, platform info | Namespaces follow the folders: `Niddy.Core` (`DisposeIfPossible`), `.Collections`, `.GitHub`, `.IO`, `.IO.Archives`, `.IO.Backups`, `.Logging`, `.Logging.Files`, `.Logging.Batching`, `.Resilience`, `.Results`, `.Security`, `.Serialization`, `.Settings`, `.SystemInfo`, `.Text`, `.Threading`, `.Web` |
-| `Niddy.Avalonia` | Avalonia apps: app hosting, pages, dialogs, toasts, state memory, converters | Namespaces follow the folders: `Niddy.Avalonia` (`FilePicker`, `UriLauncher`, `WindowNotification`, `ScreenPlacement`), `.Hosting`, `.PageSystem` (everything for pages: `Page`, `PageView`, `[PageRegistration]`, `PageRegistry`, `[PageIcon]`, `PageMenu`), `.Dialogs`, `.Toasts`, `.State`, `.Converters`, `.DataContexts`, `.Layout`, `.Theme` |
+| `Niddy.Avalonia` | Avalonia apps: app hosting, pages, dialogs, toasts, tables, state memory, converters | Namespaces follow the folders: `Niddy.Avalonia` (`FilePicker`, `UriLauncher`, `WindowNotification`, `ScreenPlacement`), `.Hosting`, `.PageSystem` (everything for pages: `Page`, `PageView`, `[PageRegistration]`, `PageRegistry`, `[PageIcon]`, `PageMenu`), `.Dialogs`, `.Toasts`, `.Tables` (`TableGrid`), `.State`, `.Converters`, `.DataContexts`, `.Layout`, `.Theme` |
 | `Niddy.Avalonia.Generators` | Compile-time registration of `[PageRegistration]` pages. **Without it, `[PageRegistration]` does nothing.** | generates `Niddy.Generated.Pages_<Assembly>` |
 
 XAML: `xmlns:niddy="https://github.com/vonderborch/Niddy"` covers every public `Niddy.Avalonia` namespace. For the `Page` root element, examples use `xmlns:pageSystem="clr-namespace:Niddy.Avalonia.PageSystem;assembly=Niddy.Avalonia"`.
@@ -146,9 +146,14 @@ Every dialog is `await Dialog.<Kind>.Open(parent, …)`, where `parent` is `this
 | `Table.Open(p, title, description, items, columns = null)` / `Table.Pick(…)` | `Task` / `Task<T?>`; columns are `new TableColumn<T>("Header", x => x.Value) { Format = …, AlignRight = true, Width = … }` |
 | `Web.Open(p, title, uri, closeWhen: u => …, openInBrowserText = "Open in Browser")` | `Task<Uri?>`: the matched address, or the last address shown. Best with `displayMode: DialogDisplayMode.Window`. |
 | `Web.OpenHtml(p, title, html, baseAddress = null, closeWhen = null)` | `Task<Uri?>` |
+| `View.Open(p, view, title = null, description = null, okButtonText = "OK", cancelButtonText = "Cancel", canAccept = null, …, fit = ViewFit.Stretch, fill = false)` | `Task<bool>`, true for OK. `view` is any control not already shown, or a `Window` that isn't open (its content, title, `Width`, `Height` and `DataContext` are used; the content goes back afterwards). `View.Close(control, accepted)` closes it from inside. |
 | `Show(p, new MyDialog(…), maxWidth = 500)` | `Task<TResult>` for a custom dialog |
 
-All calls also accept `maxWidth`, `displayMode`, `windowWidth` and `windowHeight`.
+All calls also accept `maxWidth`, `displayMode`, `windowWidth` and `windowHeight`. Markdown, Table, MultiInput, Exception, Selection and Web also take `contentHeight:`, a fixed height for their scrolling area (by default it fits up to 420/400/300/240/200, then scrolls; Web's is 560). `View.Open` takes it too, for the view; set it for a `DataGrid` or anything that scrolls inside itself, or pass `fill: true` instead.
+
+**Fitting a view:** `View.Open`'s `fit:` is a `ViewFit`: `Stretch` (default: the view gets the dialog's width and the height it wants), `Center` (its own size, centered), `Scroll` (its own size, scroll bars both ways when bigger; the area fits up to 400), `Shrink` (scaled down to fit, never up) or `Scale` (scaled up or down to fit). `fill: true` makes the dialog as big as the host allows (the whole overlay, or a resizable window at 80% of its owner) and gives the view all the height between the description and the buttons; it can't be combined with `contentHeight`.
+
+**Existing view or window in a dialog:** use `Dialog.View.Open` rather than writing a `DialogBase` class. Write a `DialogBase` when the dialog needs its own result type or buttons.
 
 **Custom dialog:** create an AXAML file with `<dialogs:DialogLayout … Title="…" Description="…">` as the root. Put the body as its content and buttons in `<dialogs:DialogLayout.Buttons>`. In code-behind, derive from `DialogBase<TResult>`, implement `protected override TResult DismissResult`, and call `Close(result)` from buttons. You can also override `InitialFocus`, `CanDismiss` and `OnDismissed()`. Use a new instance per `Dialog.Show`.
 
@@ -192,6 +197,59 @@ Details: [Toast](Niddy.Avalonia/Toasts/Toast.md), [ToastHandle](Niddy.Avalonia/T
 - **`ThemeManager`:** `ThemeManager.Current` / `IsDarkMode` give the current light or dark theme. `ThemeChanged` and `WhenThemeChanged()` report changes.
 
 Details: [DataContextBase](Niddy.Avalonia/DataContexts/DataContextBase.md), [Converters](README.md#niddyavalonia), [Responsive](Niddy.Avalonia/Layout/Responsive.md), [ThemeManager](Niddy.Avalonia/Theme/ThemeManager.md).
+
+---
+
+## Tables (`Niddy.Avalonia.Tables`)
+
+`TableGrid` **is a `DataGrid`** (a subclass): everything DataGrid does works unchanged (`ItemsSource`, `Columns`, `AutoGenerateColumns`, `SelectedItem`, `CollectionView`, frozen columns, row details, styles). It adds: **read-only by default** (`IsReadOnly` defaults to true), optional **row locking** when editable, and **paging** with an automatic pager (first/previous/page box/next/last, rows per page, "61–90 of 352", refresh). **It isn't Avalonia 12.1's own `TableView`**, which is a different control in `Avalonia.Controls`.
+
+```csharp
+// Rows in memory: plain ItemsSource. Paged in memory; header sorting and CollectionView.Filter cover ALL rows, not just the page
+TableGrid table = new() { PageSize = 50 };
+table.Columns.Add(new TableGridColumn<Order>("Order", o => o.Number) { Format = o => $"#{o.Number}" });   // Format: text; Value still sorts
+table.Columns.Add(new TableGridColumn<Order>("Customer", o => o.Customer) { Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 150 });
+table.Columns.Add(new TableGridColumn<Order>("Total", o => o.Total) { FormatString = "C", CellClass = o => o.Total > 1000 ? "big" : null });   // numbers right-align
+// TableGridColumn is a DataGridColumn: Width/MinWidth/CanUserSort/SortMemberPath are DataGrid's. Also: Alignment, NullText, Comparer, Foreground, CellTemplate = o => new MyBadge(o)
+// Any DataGridColumn works too (DataGridTextColumn, DataGridCheckBoxColumn, DataGridTemplateColumn)
+table.RowClass = item => ((Order)item).IsCancelled ? "muted" : null;   // style DataGridRow.muted
+table.ItemsSource = orders;   // an ObservableCollection updates counts as it changes
+table.CollectionView!.Filter = o => ((Order)o).Total > 0;   // counts and pages follow
+table.ItemActivated += (_, e) => Open((Order)e.Item);   // double-tap or Enter (not on a row being edited)
+
+// Editable with row locking: each row has a lock button (LockColumn, added first); locked rows don't enter edit
+TableGrid lines = new() { IsReadOnly = false, LockRows = true, ItemsSource = orderLines };
+lines.Columns.Add(new TableGridColumn<OrderLine>("Qty", l => l.Quantity) { Edit = (l, text) => l.Quantity = int.Parse(text) });   // throw = reject, cell stays in edit
+lines.CanUnlockRow = item => !((OrderLine)item).IsShipped;   // refused rows get a disabled button
+lines.UnlockRow(line); lines.LockRow(line); lines.LockAllRows(); lines.IsRowUnlocked(line);   // ShowLockButtons = false to do it only from code
+
+// Pages loaded by the app (web API, database): set Source, not ItemsSource. The function gets the page, size, cursor and sort
+table.Source = new PagedTableSource<GitHubIssueInfo>((request, ct) =>
+    GitHubIssues.ListPageAsync("owner/repo", filter, request.Page, request.PageSize, read, cancellationToken: ct));
+// canSort: true if the function sorts by request.SortKey (the column's SortMemberPath, else binding path, else Header); CanUserSort = false on columns it can't sort
+// Cursor APIs: new PagedTableSource<GitHubProjectItem>((r, ct) => GitHubProjects.ListItemsPageAsync("org", 5, read, r.PageSize, r.Cursor, cancellationToken: ct), canJumpToPage: false)
+// Your own: return new ItemPage<T> { Items = rows, HasMore = …, TotalCount = …, PageCount = … } (leave unknowns null)
+source.Reset();     // back to page 1 (filter changed); source.Refresh() reloads the page. Any thread.
+await table.GoToPageAsync(3); await table.RefreshAsync();   // never throw; failures go to table.Error and the Retry button
+```
+
+```xml
+<niddy:TableGrid ItemsSource="{Binding Orders}" AutoGenerateColumns="True" PageSize="25" SelectedItem="{Binding Selected}" EmptyText="No orders." />
+<!-- AutoGenerateColumns is off by default, as in DataGrid; generated headers split words ("CreatedAt" → "Created At") -->
+<niddy:TableGrid ItemsSource="{Binding Lines}" IsReadOnly="False" LockRows="True">
+    <niddy:TableGrid.Columns>
+        <DataGridTextColumn Header="Quantity" Binding="{Binding Quantity}" />
+    </niddy:TableGrid.Columns>
+</niddy:TableGrid>
+```
+
+- Added properties: `Source`, `PageSize` (25), `PageSizes`, `ShowPager` (off = no paging for ItemsSource), `ShowPageSizes`, `EmptyText`, `LockRows`, `ShowLockButtons`; read-only `Page`, `PageCount`, `TotalCount`, `HasMore`, `IsLoading`, `Error`. Methods: `RefreshAsync`, `GoToPageAsync`, `RefreshRowClasses`, the lock methods.
+- Setting `ItemsSource` clears `Source`; setting `Source` replaces `ItemsSource` with the page shown.
+- The source's function runs **on the UI thread**: await slow work. Its `CancellationToken` is cancelled when the user moves on.
+- The DataGrid theme is needed: `NiddyApp` adds it; otherwise add `avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml` to the app's styles.
+- For a quick table in a dialog, `Dialog.Table` (with `Dialogs.TableColumn<T>`) is simpler; it isn't paged.
+
+Details: [TableGrid](Niddy.Avalonia/Tables/TableGrid.md), [TableGridColumn](Niddy.Avalonia/Tables/TableGridColumn.md), [PagedTableSource](Niddy.Avalonia/Tables/PagedTableSource.md), [example](examples/github-table.md).
 
 ---
 
@@ -243,10 +301,10 @@ store.Watch();                                // reload on external edits (Chang
 // Versioning: the store writes "$version" into the file and upgrades older files one step at a time, on the raw JSON
 // (before deserializing), then backs up the old file and saves. A file without a version is version 0.
 //   public override int Version => 2;
-//   protected override void ConfigureMigrations(SettingsMigrations migrations) => migrations   // one lambda per version
+//   protected override void ConfigureMigrations(SettingsMigrations<Settings> migrations) => migrations   // one lambda per version
 //       .Add(fromVersion: 0, json => json.RenameProperty("colour", "color"))
-//       .Add(fromVersion: 1, json => json.Remove("legacy"));   // a step from >= Version throws on read: bump Version
-//   protected override void OnUpgraded(Settings s, int fromVersion) { … }   // optional typed fix-up after migrating
+//       .Add(fromVersion: 1, json => json.Remove("legacy"))   // a step from >= Version throws on read: bump Version
+//       .AfterUpgrade((s, fromVersion) => { … });   // optional typed fix-up after migrating (one per store)
 // Steps run in order (file v1, store v5: the steps from 1, 2, 3, 4); a version without a step is skipped, unless
 //   store.TreatMissingMigrationAsError = true, which makes it a failure (SettingsMigrationException.IsMissingStep).
 // A step that throws (or is missing, as above): store.MigrationFailureAction = UseDefaults (default: CorruptFileDetected, *.bad, defaults)
@@ -356,8 +414,11 @@ GitHubIssue issue = GitHubIssue.Bug("Crash when saving", details) with   // or F
     Details = new Dictionary<string, string> { ["Document"] = "a.txt" },   // table under the body
     IncludeSystemInfo = true,                 // app version, OS, architecture, runtime; nothing identifying
 };
-GitHubIssue crash = GitHubIssue.FromException(ex, body: "What I was doing");   // title from the real cause, full ToString() in an "Exception" section, bug label, system info
+GitHubIssue crash = GitHubIssue.FromException(ex, body: "What I was doing");   // title from the real cause, full ToString() in an "Exception" section, bug label, system info, Fingerprint
 Result<GitHubIssueReference> created = await GitHubIssues.CreateAsync("owner/repo", token, issue);   // .Number, .Url
+// Fingerprint (any text; FromException sets type + throwing method; null = always new): CreateAsync searches open issues for its hidden
+//   marker and, if found, comments there instead → created.Value.AddedAsComment / .CommentUrl. Search or comment failing → new issue.
+//   Search lags ~1 min, so near-simultaneous reports can still duplicate. Closed issues don't match.
 // Too long for GitHub (65,536 chars) or a URL (~8,000): sections are cut first (shared evenly, "… (cut)"), then Body; reporter/details kept
 // Fails (no throw) with Error.Code in GitHubIssues.ErrorCodes: Unauthorized, Forbidden, RateLimited, NotFound, IssuesDisabled, Invalid, Failed, Network
 // Token: fine-grained PAT, one repo, Issues read/write only (a shipped token can be extracted). Labels/assignees/milestone are
@@ -367,6 +428,36 @@ GitHubIssues.OpenInBrowser("owner/repo", issue);   // no token: prefilled new-is
 Result<GitHubIssueSubmission> sent = await GitHubIssues.CreateOrOpenAsync("owner/repo", tokenOrNull, issue, openUrl: url => _ = UriLauncher.TryLaunchAsync(control, url));
 // sent.Value.OpenedInBrowser / .Issue / .ApiError; can't open the browser: ErrorCodes.BrowserUnavailable
 // Sync: GitHubIssues.Create(…) / CreateOrOpen(…), same parameters and limits as WebContent's sync versions
+// Set up once instead (keep it for the app's lifetime): same methods minus repository/token/httpClient/openUrl/baseAddress
+GitHubIssueClient issues = new("owner/repo", tokenOrNull, httpClient) { Reporter = reporter, OpenUrl = url => _ = UriLauncher.TryLaunchAsync(control, url) };
+await issues.CreateOrOpenAsync(crash);   // also CreateAsync (throws InvalidOperationException without a token), Create, CreateOrOpen, GetNewIssueUrl, OpenInBrowser
+// Reporter fills in issues whose Reporter is null; HasToken says whether CreateAsync can be used
+
+// Reading GitHub (Niddy.Core.GitHub), read-only: issues and PRs via REST, projects (v2 only) via GraphQL
+GitHubReadOptions read = new() { Token = tokenOrNull, CacheDirectory = Path.Combine(paths.Cache, "github") };   // CacheDuration defaults to Zero: always asks, 304s are free, offline → cached copy
+Result<IReadOnlyList<GitHubIssueInfo>> open = await GitHubIssues.ListAsync("owner/repo",
+    new GitHubIssueFilter { Labels = ["bug"], Sort = GitHubIssueSort.Updated }, maxCount: 50, options: read);   // PRs skipped unless IncludePullRequests
+// GitHubIssueInfo (not GitHubIssue, which is for opening one): Number, Title, Body, State (GitHubItemState), IsPullRequest, Labels, CommentCount, …
+Result<GitHubIssueInfo> one = await GitHubIssues.GetAsync("owner/repo", 42, read);
+Result<IReadOnlyList<GitHubIssueInfo>> hits = await GitHubIssues.SearchAsync("repo:owner/repo is:pr is:open author:me", options: read);   // max 1,000; 30 searches/min
+Result<IReadOnlyList<GitHubComment>> comments = await GitHubIssues.ListCommentsAsync("owner/repo", 42, options: read);   // PR conversation too
+Result<IReadOnlyList<GitHubPullRequest>> pulls = await GitHubPullRequests.ListAsync("owner/repo",
+    new GitHubPullRequestFilter { Base = "main", Head = "owner:branch" }, options: read);   // Head needs owner:branch
+// GitHubPullRequest: HeadBranch, BaseBranch, IsDraft, State (Merged too), RequestedReviewers; counts/IsMergeable only from GetAsync (null in lists)
+// Projects: options with a Token is required (ArgumentNullException/ArgumentException otherwise); read:project scope or Projects: Read
+Result<IReadOnlyList<GitHubProject>> projects = await GitHubProjects.ListAsync("org", read);   // or ListForRepositoryAsync("owner/repo", read); GetAsync("org", number, read)
+Result<IReadOnlyList<GitHubProjectItem>> items = await GitHubProjects.ListItemsAsync("org", 5, read, maxCount: 500);
+// item.Type (Issue/PullRequest/DraftIssue/Redacted), .Status, .GetField("Priority") (case-insensitive, numbers invariant), .IsArchived (archived items may be included)
+Result<IReadOnlyList<GitHubProjectField>> fields = await GitHubProjects.ListFieldsAsync("org", 5, read);   // .Options: single-select options / iteration titles
+// ErrorCodes: GitHubPullRequests/GitHubProjects.ErrorCodes have GitHubIssues.ErrorCodes' values. Every read has a sync twin (List, Get, Search, ListItems, …)
+// Paging yourself (e.g. a TableGrid): one page per call, as an ItemPage<T> (Niddy.Core.Collections): Items, HasMore, NextCursor, TotalCount?, PageCount?
+Result<ItemPage<GitHubIssueInfo>> page2 = await GitHubIssues.ListPageAsync("owner/repo", filter: null, page: 2, pageSize: 50, options: read);
+// PageCount from the Link header, TotalCount null; PRs are filtered out after reading, so a page can be short (or empty) with HasMore true
+// Also SearchPageAsync(query, page, pageSize, …) (TotalCount = GitHub's; pages must start within the first 1,000), ListCommentsPageAsync(repo, number, page, pageSize, …),
+// GitHubPullRequests.ListPageAsync(repo, filter, page, pageSize, …). page ≥ 1, pageSize 1–100, else ArgumentOutOfRangeException
+Result<ItemPage<GitHubProjectItem>> first = await GitHubProjects.ListItemsPageAsync("org", 5, read, pageSize: 50);   // cursor-based: no page numbers
+Result<ItemPage<GitHubProjectItem>> next = await GitHubProjects.ListItemsPageAsync("org", 5, read, 50, first.Value!.NextCursor);   // NextCursor null on the last page
+// Also ListPageAsync(owner, read, pageSize, cursor) and ListForRepositoryPageAsync(repo, read, pageSize, cursor); TotalCount and PageCount are given. Sync twins: ListPage, SearchPage, ListItemsPage, …
 
 // GitHub releases (Niddy.Core.GitHub): update checks and downloads
 GitHubReleaseOptions releaseOptions = new()
@@ -427,8 +518,19 @@ Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-pat
 | `WebContent.DownloadFileAsync(url, path, overwrite: true, progress: …)` | `new DownloadOptions { Overwrite = true, Progress = … }` as the third argument |
 | `Version.Parse(release.TagName.TrimStart('v'))` and `>` for update checks | `GitHubReleases.CheckForUpdateAsync`: semver order, prereleases, tag prefixes, `+build` metadata |
 | Calling the GitHub releases API on every app start without a token | Set `GitHubReleaseOptions.CacheDirectory`; 60 requests/hour per IP are shared by everyone on it |
+| `GitHubIssue` for issues read from GitHub | `GitHubIssueInfo`; `GitHubIssue` is what `CreateAsync` opens |
+| `GitHubProjects.ListAsync("org", new GitHubReadOptions())` | Projects need a token (GraphQL); it throws `ArgumentException` without one |
+| `GitHubPullRequestFilter { Head = "my-branch" }` | `Head = "owner:my-branch"`; a bare branch matches nothing |
 | `WebContent.ReadText` / `DownloadFile` (sync) in browser (WASM) code | The async versions; the sync ones are `[UnsupportedOSPlatform("browser")]` |
 | `return ok ? text : new Error("…");` in a method returning `Result<string>` | The `?:` is typed `Error` (string converts to `Error` implicitly), so the text becomes a failure. Use `if`/`return`, or `Result<string>.Success(text)` |
+| `new TableView()` / `TableViewColumn` for a Niddy table | `TableGrid` / `TableGridColumn<T>`; `TableView` is Avalonia 12.1's own control |
+| A `TableGrid` with no rows in an app not built on `NiddyApp` | Add the DataGrid theme: `<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>` |
+| Blocking (`.Result`, synchronous I/O) in a `PagedTableSource` function | `await`; it runs on the UI thread |
+| `PagedTableSource` for a GraphQL/cursor API with page numbers | `canJumpToPage: false` and pass `request.Cursor`; the table keeps the cursors |
+| Columns not sortable with a `PagedTableSource` | `canSort: true` if the function sorts by `request.SortKey`; `CanUserSort = false` on the columns it can't sort |
+| A `TableGrid` that won't edit | `IsReadOnly` defaults to true: set it false. With `LockRows`, unlock the row first. A `TableGridColumn<T>` also needs `Edit` |
+| A `TableGrid` with `ItemsSource` and no columns showing nothing | `AutoGenerateColumns="True"`, or add `Columns`; it's off by default, as in DataGrid |
+| `GitHubIssues.ListAsync(…, maxCount: 1000)` to fill a paged UI | `ListPageAsync(…, page, pageSize)` per page shown |
 | Tokens in `SettingsStore` | `ISecureStorage` |
 | A `Version` property on the settings class, checked in `OnLoaded` | Override the store's `Version` and add a step per version in `ConfigureMigrations`; the store writes the version and runs each step on the raw JSON, so renamed or retyped properties aren't lost |
 | A new `SettingsStore.Version` for every added property | Only bump it when old JSON needs changing; new properties just get their defaults |
@@ -446,6 +548,9 @@ Details: [Niddy.Core pages](README.md#niddycore), [examples/settings-logging-pat
 | `IOHelpers.DeleteDirectory(dir)` / `PathHelpers.PathComparison` | `Directory.DeleteWithRetry(dir)` / `Path.Comparison`, C# 14 static extensions (`using Niddy.Core.IO;`) |
 | Mutating `JsonSerializerOptions.Niddy` | It's read-only and shared; copy it: `new JsonSerializerOptions(JsonSerializerOptions.Niddy) { … }` |
 | Reusing one custom dialog instance | New instance per `Dialog.Show` |
+| `window.ShowDialog(owner)` for a form, or a `DialogBase` class just to wrap an existing view | `Dialog.View.Open(this, viewOrWindow, "Title")`; works as an overlay on mobile and browser too |
+| Passing `Dialog.View.Open` a control that's already on screen, or an open window | A new or detached control, or a window that hasn't been shown |
+| `windowHeight: 800` to show more of a `Dialog.Markdown`/`Table` | `contentHeight: 600`; `windowHeight` sizes the window, not the capped scrolling area inside it |
 | Handling `SettingsStore.Changed` / `PageRegistry.PagesChanged` and touching UI | `Dispatcher.UIThread.Post(...)` |
 | `Platform.Info.OSVersion` as the Linux distro or Android release | It's the kernel version on Linux and Android |
 | Expecting `Triple` to always end in `linux-gnu` on Linux | It's `linux-musl` on Alpine and other musl distros, with `eabihf` added on 32-bit ARM. 32-bit `Arm` is `armv7`, `Armv6` is `arm` |

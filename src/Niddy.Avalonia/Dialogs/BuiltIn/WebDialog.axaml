@@ -7,7 +7,7 @@
                       x:Class="Niddy.Avalonia.Dialogs.BuiltIn.WebDialog"
                       x:ClassModifier="internal">
 
-    <Panel Name="PanelWebHost" MinHeight="200" />
+    <Panel Name="PanelWebHost" Height="560" />
 
     <dialogs:DialogLayout.Buttons>
         <Button Name="ButtonOpenInBrowser" Click="ButtonOpenInBrowser_OnClick" />

@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Interactivity;
@@ -134,4 +135,22 @@ public class DialogTests
         layout.Buttons.Add(new Button());
         Assert.True(layout.Buttons[0].IsEffectivelyVisible);
     }
+
+    [AvaloniaFact]
+    public void DialogLayout_PutsTwelveBetweenTheVisibleParts_AndNoneForHiddenOnes()
+    {
+        Border body = new() { Height = 40 };
+        Button button = new() { Content = "OK" };
+        DialogLayout layout = new() { Title = "Title", Content = body, Buttons = { button } };
+        new Window { Content = layout, SizeToContent = SizeToContent.Height }.Show();
+        layout.UpdateLayout();
+
+        TextBlock title = layout.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == "Title");
+        double bodyTop = body.TranslatePoint(default, layout)!.Value.Y;
+        double buttonTop = button.TranslatePoint(default, layout)!.Value.Y;
+        Assert.Equal(title.Bounds.Height + 12, bodyTop, 1);
+        Assert.Equal(bodyTop + 40 + 12, buttonTop, 1);
+        Assert.Equal(buttonTop + button.Bounds.Height, layout.Bounds.Height, 1);
+    }
 }
+

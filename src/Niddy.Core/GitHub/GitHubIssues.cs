@@ -12,7 +12,8 @@ namespace Niddy.Core.GitHub;
 /// Opens GitHub issues from anywhere in an app: bug reports, feature requests, anything. <see cref="CreateAsync"/>
 /// creates the issue through the REST API with a token; <see cref="OpenInBrowser"/> needs no token and opens GitHub's
 /// new-issue form, filled in, for the user to submit; <see cref="CreateOrOpenAsync"/> tries the first and falls back to
-/// the second.
+/// the second. It also reads existing issues: <see cref="ListAsync"/>, <see cref="GetAsync"/>,
+/// <see cref="SearchAsync"/> and <see cref="ListCommentsAsync"/>.
 /// </summary>
 /// <example>
 /// <code>
@@ -20,33 +21,43 @@ namespace Niddy.Core.GitHub;
 ///     "vonderborch/Niddy", token, GitHubIssue.Bug("Crash when saving", details) with { IncludeSystemInfo = true });
 /// </code>
 /// </example>
-public static class GitHubIssues
+public static partial class GitHubIssues
 {
-    /// <summary>The <see cref="Error.Code"/> values <see cref="CreateAsync"/> and <see cref="CreateOrOpenAsync"/> fail with.</summary>
+    /// <summary>
+    /// The <see cref="Error.Code"/> values <see cref="CreateAsync"/>, <see cref="CreateOrOpenAsync"/> and the reads
+    /// fail with.
+    /// </summary>
     public static class ErrorCodes
     {
         /// <summary>401: the token is missing, invalid or expired.</summary>
         public const string Unauthorized = "Unauthorized";
 
-        /// <summary>403: the token can't create issues in the repository.</summary>
+        /// <summary>403: the token can't create issues in the repository, or can't read it.</summary>
         public const string Forbidden = "Forbidden";
 
-        /// <summary>403 or 429 from GitHub's rate limits. Try again later.</summary>
+        /// <summary>
+        /// 403 or 429 from GitHub's rate limits, with nothing cached to fall back on. Try again later, or use a token.
+        /// </summary>
         public const string RateLimited = "RateLimited";
 
-        /// <summary>404: the repository doesn't exist, or the token can't see it.</summary>
+        /// <summary>404: the repository or issue doesn't exist, or the token can't see it.</summary>
         public const string NotFound = "NotFound";
 
         /// <summary>410: the repository has issues turned off.</summary>
         public const string IssuesDisabled = "IssuesDisabled";
 
-        /// <summary>422: GitHub rejected the issue, e.g. an unknown issue type or milestone.</summary>
+        /// <summary>
+        /// 422: GitHub rejected the issue, e.g. an unknown issue type or milestone, or a read's filter or search query.
+        /// </summary>
         public const string Invalid = "Invalid";
 
         /// <summary>Any other response, or a success response that couldn't be read.</summary>
         public const string Failed = "Failed";
 
-        /// <summary>The request didn't get a response: no connection, DNS failure, or a timeout.</summary>
+        /// <summary>
+        /// The request didn't get a response (with nothing cached to fall back on, for reads): no connection, DNS
+        /// failure, or a timeout.
+        /// </summary>
         public const string Network = "Network";
 
         /// <summary><see cref="CreateOrOpenAsync"/> needed the browser and couldn't open it.</summary>
@@ -71,7 +82,8 @@ public static class GitHubIssues
     /// </param>
     /// <param name="issue">
     /// The issue. Its body is <see cref="GitHubIssue.FormatBody()"/>, cut to GitHub's 65,536-character limit: sections
-    /// first, then the body text.
+    /// first, then the body text. If it has a <see cref="GitHubIssue.Fingerprint"/> and there's already an open issue
+    /// with the same one, the report is added to that issue as a comment instead.
     /// </param>
     /// <param name="httpClient">
     /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the API address, e.g.
@@ -80,9 +92,9 @@ public static class GitHubIssues
     /// </param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
-    /// The new issue, or a failure whose <see cref="Error.Code"/> is one of <see cref="ErrorCodes"/>. Failures from an
-    /// HTTP response carry an <see cref="HttpRequestException"/> with the status code, and their message includes
-    /// GitHub's.
+    /// The new issue, or the existing one with <see cref="GitHubIssueReference.CommentUrl"/> set, or a failure whose
+    /// <see cref="Error.Code"/> is one of <see cref="ErrorCodes"/>. Failures from an HTTP response carry an
+    /// <see cref="HttpRequestException"/> with the status code, and their message includes GitHub's.
     /// </returns>
     /// <exception cref="ArgumentException">
     /// <paramref name="repository"/> isn't <c>owner/name</c>, <paramref name="token"/> is blank, or the issue's title is
@@ -211,6 +223,13 @@ public static class GitHubIssues
         ValidateIssue(issue);
 
         HttpClient client = SharedHttp.ClientFor(httpClient, sync);
+        if (issue.FingerprintToken is { } fingerprint
+            && await AddToOpenIssueAsync(client, owner, name, token, issue, fingerprint, sync, cancellationToken)
+                .ConfigureAwait(false) is { } existing)
+        {
+            return existing;
+        }
+
         Uri address = GitHubApi.ApiAddress(client, $"{GitHubApi.RepositoryPath(owner, name)}/issues");
         using HttpRequestMessage request = GitHubApi.CreateRequest(HttpMethod.Post, address, client, token);
         request.Content = new StringContent(BuildRequestBody(issue).ToJsonString(), Encoding.UTF8, "application/json");
@@ -223,6 +242,106 @@ public static class GitHubIssues
         catch (Exception ex) when (GitHubApi.ToNetworkError(ex, ErrorCodes.Network, cancellationToken) is { } error)
         {
             return error;
+        }
+    }
+
+    /// <summary>
+    /// Finds the oldest open issue whose body has <paramref name="fingerprint"/>'s marker and adds the report to it as
+    /// a comment. Null if there's no such issue, or if the search or the comment fails, so that a new issue is opened
+    /// instead: a duplicate is better than a lost report.
+    /// </summary>
+    private static async ValueTask<GitHubIssueReference?> AddToOpenIssueAsync(HttpClient client, string owner,
+        string name, string token, GitHubIssue issue, string fingerprint, bool sync, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string query = $"repo:{owner}/{name} is:issue is:open in:body \"{fingerprint}\"";
+            Uri searchAddress = GitHubApi.ApiAddress(client,
+                $"search/issues?q={Uri.EscapeDataString(query)}&sort=created&order=asc&per_page=20");
+            using HttpRequestMessage search = GitHubApi.CreateRequest(HttpMethod.Get, searchAddress, client, token);
+            GitHubResponse found = await GitHubApi.SendAsync(client, search, sync, cancellationToken).ConfigureAwait(false);
+            if (!found.IsSuccess || ReadOpenIssue(found.Content, fingerprint) is not { } existing)
+            {
+                return null;
+            }
+
+            // The comment repeats the title only when it differs, e.g. a different message for the same crash.
+            string title = issue.Title.Trim();
+            string heading = title == existing.Title.Trim() ? string.Empty : $"**{title}**\n\n";
+            string comment = heading + issue.FormatContent(MaxBodyLength - heading.Length);
+            if (comment.Length == 0)
+            {
+                comment = "Reported again.";
+            }
+
+            Uri commentAddress = GitHubApi.ApiAddress(client,
+                $"{GitHubApi.RepositoryPath(owner, name)}/issues/{existing.Number}/comments");
+            using HttpRequestMessage post = GitHubApi.CreateRequest(HttpMethod.Post, commentAddress, client, token);
+            post.Content = new StringContent(new JsonObject { ["body"] = comment }.ToJsonString(), Encoding.UTF8,
+                "application/json");
+            GitHubResponse commented = await GitHubApi.SendAsync(client, post, sync, cancellationToken).ConfigureAwait(false);
+            if (!commented.IsSuccess)
+            {
+                return null;
+            }
+
+            // The comment exists even if its address can't be read, so the issue's stands in for it.
+            return new GitHubIssueReference(existing.Number, existing.Url)
+            {
+                CommentUrl = ReadUrl(commented.Content) ?? existing.Url,
+            };
+        }
+        catch (Exception ex) when (GitHubApi.ToNetworkError(ex, ErrorCodes.Network, cancellationToken) is not null)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The first open issue in search results whose body really has the fingerprint, not just a near match.</summary>
+    private static (int Number, Uri Url, string Title)? ReadOpenIssue(string content, string fingerprint)
+    {
+        try
+        {
+            if (JsonNode.Parse(content)?["items"] is not JsonArray items)
+            {
+                return null;
+            }
+
+            foreach (JsonNode? item in items)
+            {
+                if (item is not JsonObject found || found["pull_request"] is not null
+                    || found["state"]?.GetValue<string>() != "open"
+                    || found["body"]?.GetValue<string>()?.Contains(fingerprint, StringComparison.Ordinal) != true)
+                {
+                    continue;
+                }
+
+                int? number = found["number"]?.GetValue<int>();
+                if (number is int n && Uri.TryCreate(found["html_url"]?.GetValue<string>(), UriKind.Absolute, out Uri? url))
+                {
+                    return (n, url, found["title"]?.GetValue<string>() ?? string.Empty);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            // Unreadable results are no results: a new issue is opened.
+        }
+
+        return null;
+    }
+
+    private static Uri? ReadUrl(string content)
+    {
+        try
+        {
+            return Uri.TryCreate(JsonNode.Parse(content)?["html_url"]?.GetValue<string>(), UriKind.Absolute, out Uri? url)
+                ? url
+                : null;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
         }
     }
 

@@ -50,7 +50,7 @@ public sealed class AppSettingsStore(AppPaths paths)
     public override int Version => 1;
 
     // fromVersion 0: files from before versioning. RenameProperty is in Niddy.Core.Serialization.
-    protected override void ConfigureMigrations(SettingsMigrations migrations) =>
+    protected override void ConfigureMigrations(SettingsMigrations<AppSettings> migrations) =>
         migrations.Add(fromVersion: 0, json => json.RenameProperty("folder", "workspace"));
 }
 ```

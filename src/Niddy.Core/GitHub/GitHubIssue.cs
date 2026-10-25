@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using Niddy.Core.SystemInfo;
 
@@ -72,6 +73,23 @@ public sealed record GitHubIssue
     /// </summary>
     public bool IncludeSystemInfo { get; init; }
 
+    /// <summary>
+    /// Identifies the problem, so that reports of the same one go to one issue. When it's set,
+    /// <see cref="GitHubIssues.CreateAsync"/> first looks for an open issue with the same fingerprint and, if there is
+    /// one, adds the report to it as a comment instead of opening another. Any text works, e.g. <c>export-crash</c>;
+    /// only a hash of it goes in the issue, as a hidden marker at the end of the body. <see cref="FromException"/> sets
+    /// it to the exception's type and where it was thrown. Null, the default, always opens a new issue.
+    /// </summary>
+    public string? Fingerprint { get; init; }
+
+    /// <summary>
+    /// The word the hidden marker carries for <see cref="Fingerprint"/>, searched for to find the issue again: <c>nfp</c>
+    /// and 16 hex digits of its hash. Null when there's no fingerprint.
+    /// </summary>
+    internal string? FingerprintToken => string.IsNullOrWhiteSpace(this.Fingerprint)
+        ? null
+        : "nfp" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(this.Fingerprint.Trim())).AsSpan(0, 8));
+
     /// <summary>A bug report: <paramref name="title"/> and <paramref name="body"/> with the <c>bug</c> label.</summary>
     /// <param name="title">The issue title.</param>
     /// <param name="body">The issue text, in Markdown.</param>
@@ -103,7 +121,9 @@ public sealed record GitHubIssue
     /// A crash report for <paramref name="exception"/>: the <c>bug</c> label, system info, and the full exception
     /// (type, message, stack trace and inner exceptions) in an "Exception" section. The title is the exception's
     /// type and the first line of its message, after unwrapping a <see cref="TargetInvocationException"/> or an
-    /// <see cref="AggregateException"/> with one inner exception.
+    /// <see cref="AggregateException"/> with one inner exception. The <see cref="Fingerprint"/> is that exception's
+    /// type and the method it was thrown from, so the same crash goes to one issue however its message varies; set it
+    /// to null to always open a new issue.
     /// </summary>
     /// <param name="exception">The exception to report.</param>
     /// <param name="title">The title. Null makes one from the exception.</param>
@@ -133,22 +153,44 @@ public sealed record GitHubIssue
             Labels = ["bug"],
             IncludeSystemInfo = true,
             Sections = [GitHubIssueSection.Code("Exception", exception.ToString(), collapsed: false)],
+            Fingerprint = $"{cause.GetType().FullName} at {ThrownFrom(cause) ?? message}",
         };
     }
 
     /// <summary>
     /// The Markdown that becomes the issue body: <see cref="Body"/>, then the <see cref="Sections"/>, then a
     /// "Reported by" line for <see cref="Reporter"/> and a table of <see cref="Details"/> and, if
-    /// <see cref="IncludeSystemInfo"/> is set, the system info. With none of those set, it's just <see cref="Body"/>,
-    /// or an empty string.
+    /// <see cref="IncludeSystemInfo"/> is set, the system info, and last the hidden marker for
+    /// <see cref="Fingerprint"/>. With none of those set, it's just <see cref="Body"/>, or an empty string.
     /// </summary>
     public string FormatBody() => this.FormatBody(int.MaxValue);
 
     /// <summary>
-    /// <see cref="FormatBody()"/>, at most <paramref name="maxLength"/> characters. Sections are cut first, sharing the
-    /// space evenly so short ones stay whole, then <see cref="Body"/>; the reporter and details are kept.
+    /// <see cref="FormatBody()"/>, at most <paramref name="maxLength"/> characters. The fingerprint marker is kept unless
+    /// there's no room for anything else.
     /// </summary>
     internal string FormatBody(int maxLength)
+    {
+        if (this.FingerprintToken is not { } token)
+        {
+            return this.FormatContent(maxLength);
+        }
+
+        string marker = $"<!-- fingerprint: {token} -->";
+        if (maxLength < marker.Length + 2)
+        {
+            return this.FormatContent(maxLength);
+        }
+
+        string content = this.FormatContent(maxLength - marker.Length - 2);
+        return content.Length == 0 ? marker : $"{content}\n\n{marker}";
+    }
+
+    /// <summary>
+    /// The body without the fingerprint marker, at most <paramref name="maxLength"/> characters. Sections are cut first,
+    /// sharing the space evenly so short ones stay whole, then <see cref="Body"/>; the reporter and details are kept.
+    /// </summary>
+    internal string FormatContent(int maxLength)
     {
         string body = this.Body?.TrimEnd() ?? string.Empty;
         string? footer = this.FormatFooter();
@@ -185,6 +227,26 @@ public sealed record GitHubIssue
         string cutBody = bodyLength <= 0 ? string.Empty : GitHubIssueSection.Cut(body, bodyLength, keepEnd: false);
         string result = Compose(cutBody, empty, footer);
         return result.Length <= maxLength ? result : GitHubIssueSection.Cut(result, maxLength, keepEnd: false);
+    }
+
+    /// <summary>
+    /// The method at the top of the exception's stack trace, e.g. <c>App.Exporter.Save(String path)</c>, or null if it
+    /// was never thrown. The "at" before it and the file and line after it are left out: they depend on the language,
+    /// the build and the machine.
+    /// </summary>
+    private static string? ThrownFrom(Exception exception)
+    {
+        string? line = exception.StackTrace?.ReplaceLineEndings("\n").Split('\n')
+            .Select(l => l.Trim())
+            .FirstOrDefault(l => l.Length > 0);
+        if (line is null)
+        {
+            return null;
+        }
+
+        int start = line.IndexOf(' ') + 1;
+        int end = line.IndexOf(')', start);
+        return end < 0 ? line[start..] : line[start..(end + 1)];
     }
 
     private static string Compose(string body, IEnumerable<string> sections, string? footer)

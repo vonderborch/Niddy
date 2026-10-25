@@ -35,9 +35,8 @@ Typed settings kept in a JSON file. Derive a class that names the file, read wit
 | `protected virtual void Dispose(bool disposing)` | Override to release a subclass's own resources; call the base method. `disposing` is false from a finalizer. |
 | `protected virtual T CreateDefault()` | Defaults to `new T()`. |
 | `protected virtual string VersionPropertyName` | The property that holds the version in the file. Defaults to `"$version"`. |
-| `protected virtual void ConfigureMigrations(SettingsMigrations migrations)` | Adds the upgrade steps: one lambda per version, with `migrations.Add(fromVersion, json => ...)`. Called once, the first time a file is read. See [SettingsMigrations](#settingsmigrations). |
-| `protected virtual void OnUpgraded(T settings, int fromVersion)` | Called once after an older file was migrated and deserialized, before `OnLoaded`. For upgrades that are easier on the typed settings. |
-| `protected virtual SettingsMigrationFailureAction OnMigrationFailed(SettingsMigrationException exception)` | Called when an upgrade step or `OnUpgraded` throws, or a step is missing and `TreatMissingMigrationAsError` is set; returns what to do. Defaults to `MigrationFailureAction`. Override to decide per step, or to log. |
+| `protected virtual void ConfigureMigrations(SettingsMigrations<T> migrations)` | Adds the upgrade steps: one lambda per version, with `migrations.Add(fromVersion, json => ...)`, and optionally a typed fix-up with `migrations.AfterUpgrade((settings, fromVersion) => ...)`. Called once, the first time a file is read. See [SettingsMigrations](#settingsmigrations). |
+| `protected virtual SettingsMigrationFailureAction OnMigrationFailed(SettingsMigrationException exception)` | Called when an upgrade step (including `AfterUpgrade`) throws, or a step is missing and `TreatMissingMigrationAsError` is set; returns what to do. Defaults to `MigrationFailureAction`. Override to decide per step, or to log. |
 | `protected virtual void OnLoaded(T settings)` | After loading or creating, before it becomes `Current`: fill in missing values. |
 | `protected virtual void OnChanged(T settings, SettingsChangeSource source)` | Raises `Changed`. |
 | `protected virtual void OnCorruptFileDetected(string filePath, Exception exception, bool isSetAside)` | Raises `CorruptFileDetected`. |
@@ -54,9 +53,9 @@ Override `Version` once the shape of your settings changes in a way the serializ
 - A file without a version is version 0. So the first `Version` you declare is 1, and the step from version 0 upgrades files written before versioning was turned on.
 - When the file's version is lower than `Version`, the store upgrades it one version at a time, in order, on the raw [`JsonObject`](https://learn.microsoft.com/dotnet/api/system.text.json.nodes.jsonobject). A file saved at version 1 read by a store at version 5 goes through the steps from 1, 2, 3 and 4: 1→2→3→4→5. It works on the JSON rather than on `T` because an old file often doesn't fit the current class.
 - Each step is its own lambda, added in `ConfigureMigrations` with `migrations.Add(fromVersion, json => ...)`, and changes the JSON in place. By default a version without a step is skipped, so you only write the steps that do something; set `TreatMissingMigrationAsError` to make it a failure instead (see [Missing steps](#missing-steps)). Property names are as they appear in the file (camelCase with the default options). `RenameProperty` (from [JsonExtensions](../Serialization/JsonExtensions.md)) renames one in place.
-- Then the JSON is deserialized, `OnUpgraded(settings, fromVersion)` runs once, then `OnLoaded`. The old file is backed up (unless `BackupBeforeUpgrade` is false), and the upgraded settings are saved straight away. Backing up and saving are best effort.
+- Then the JSON is deserialized, the `AfterUpgrade` step (if you added one) runs once on the typed settings, then `OnLoaded`. The old file is backed up (unless `BackupBeforeUpgrade` is false), and the upgraded settings are saved straight away. Backing up and saving are best effort.
 - A file that's already at `Version` isn't migrated or rewritten.
-- If a step or `OnUpgraded` throws, `MigrationFailureAction` (or your `OnMigrationFailed`) decides what happens. See below.
+- If a step, or the `AfterUpgrade` step, throws, `MigrationFailureAction` (or your `OnMigrationFailed`) decides what happens. See below.
 - A file with a newer version than `Version` (written by a newer copy of the app) is read as it is, without migrating. Properties `T` doesn't know are dropped unless `T` has a `[JsonExtensionData]` property. Saves keep the newer version, so the newer app won't upgrade the file a second time. `FileVersion > Version` tells you this happened.
 - Upgrades also apply to files picked up by `Watch`.
 - To take over a version property your settings already have, override `VersionPropertyName` (e.g. `"version"`) and remove that property from `T`.
@@ -65,12 +64,12 @@ Override `Version` once the shape of your settings changes in a way the serializ
 
 ### When an upgrade fails
 
-When a step or `OnUpgraded` throws, the store wraps the exception in a `SettingsMigrationException` (which says which step) and calls `OnMigrationFailed(exception)`. That returns `MigrationFailureAction` unless you override it. The choices are:
+When a step, or the `AfterUpgrade` step, throws, the store wraps the exception in a `SettingsMigrationException` (which says which step) and calls `OnMigrationFailed(exception)`. That returns `MigrationFailureAction` unless you override it. The choices are:
 
 | `SettingsMigrationFailureAction` | What happens |
 |---|---|
 | `UseDefaults` (default) | The file is treated as unreadable. `CorruptFileDetected` is raised with the `SettingsMigrationException`, the file is set aside as `*.bad` if `OverrideCorruptFile` is set, and the defaults are used. |
-| `SkipStep` | Whatever the failed step changed in the JSON is undone, and the upgrade carries on with the next step as if that one had nothing to do. The backup and save happen as usual. If `OnUpgraded` failed, the settings are deserialized again without it. |
+| `SkipStep` | Whatever the failed step changed in the JSON is undone, and the upgrade carries on with the next step as if that one had nothing to do. The backup and save happen as usual. If the `AfterUpgrade` step failed, the settings are deserialized again without it. |
 | `Throw` | The `SettingsMigrationException` is thrown to whoever read the settings: `Current`, `Load`, `Update`, `Save`. Nothing is set aside, backed up or written, and nothing is cached, so the next read tries again. Use it when you'd rather stop (show an error, exit) than lose settings. A file picked up by `Watch` is ignored instead, and the current settings are kept. `Reset` still overwrites the file, since it doesn't read it. |
 
 Override `OnMigrationFailed` to decide per step, or to log:
@@ -102,18 +101,19 @@ AppSettingsStore store = new(paths)
 
 ### SettingsMigrations
 
-The upgrade steps, passed to `ConfigureMigrations` ([source](../../../src/Niddy.Core/Settings/SettingsMigrations.cs)). The store creates it; you add to it.
+`SettingsMigrations<T>`: the upgrade steps, passed to `ConfigureMigrations` ([source](../../../src/Niddy.Core/Settings/SettingsMigrations.cs)). `T` is the store's settings class. The store creates it; you add to it.
 
 | Member | Description |
 |---|---|
-| `SettingsMigrations Add(int fromVersion, Action<JsonObject> step)` | Adds the step that upgrades the JSON from `fromVersion` to `fromVersion + 1`. Returns this, to chain. Throws `ArgumentException` if there's already a step from `fromVersion`, and `ArgumentOutOfRangeException` if it's negative. |
+| `SettingsMigrations<T> Add(int fromVersion, Action<JsonObject> step)` | Adds the step that upgrades the JSON from `fromVersion` to `fromVersion + 1`. Returns this, to chain. Throws `ArgumentException` if there's already a step from `fromVersion`, and `ArgumentOutOfRangeException` if it's negative. |
+| `SettingsMigrations<T> AfterUpgrade(Action<T, int> step)` | Sets the step that runs once after an older file has been through the JSON steps and been deserialized, before `OnLoaded`. It gets the typed settings and the version the file had. Use it for upgrades that are easier on `T`, such as working out a new value from others. It doesn't run for a file already at `Version`. Returns this, to chain. Throws `InvalidOperationException` if it's already set: put everything in one. |
 | `bool Contains(int fromVersion)` | Whether there's a step from `fromVersion`. |
 | `int Count` | The number of steps. |
 | `IEnumerable<int> FromVersions` | The versions with a step, lowest first. |
 
-- Steps can only be added inside `ConfigureMigrations`; `Add` throws `InvalidOperationException` after it returns.
+- Steps can only be added inside `ConfigureMigrations`; `Add` and `AfterUpgrade` throw `InvalidOperationException` after it returns.
 - The order you add them in doesn't matter; they always run by version.
-- A step from `Version` or above could never run, so reading the file throws `InvalidOperationException` (which also catches steps added while `Version` is still 0). Bump `Version` when you add a step.
+- A step from `Version` or above could never run, so reading the file throws `InvalidOperationException` (which also catches steps added while `Version` is still 0). Bump `Version` when you add a step. Likewise, an `AfterUpgrade` step while `Version` is 0 throws, since nothing is ever upgraded.
 - A step that's longer than one line can be a method: `.Add(fromVersion: 1, ConvertFontSize)` with `static void ConvertFontSize(JsonObject json)`.
 
 ### SettingsMigrationException
@@ -123,7 +123,7 @@ Describes an upgrade step that threw, or was missing while `TreatMissingMigratio
 | Member | Description |
 |---|---|
 | `int FromVersion` | The version the failed step was upgrading from. |
-| `int ToVersion` | `FromVersion + 1` for a step; `Version` for `OnUpgraded`. |
+| `int ToVersion` | `FromVersion + 1` for a step; `Version` for the `AfterUpgrade` step. |
 | `bool IsMissingStep` | True when there was no step from `FromVersion` and `TreatMissingMigrationAsError` is set, rather than a step that threw. |
 | `InnerException` | What the step threw; an `InvalidOperationException` for a missing step. |
 
@@ -148,14 +148,16 @@ public sealed class AppSettingsStore(AppPaths paths)
     // 1: "colorScheme" renamed to "theme". 2: font size in points became a scale factor.
     public override int Version => 2;
 
-    protected override void ConfigureMigrations(SettingsMigrations migrations) => migrations
+    protected override void ConfigureMigrations(SettingsMigrations<AppSettings> migrations) => migrations
         .Add(fromVersion: 0, json => json.RenameProperty("colorScheme", "theme"))
         .Add(fromVersion: 1, json =>
         {
             double points = json["fontSize"]?.GetValue<double>() ?? 14;
             json.Remove("fontSize");
             json["fontScale"] = points / 14;
-        });
+        })
+        // Runs once on the typed settings, after the steps above.
+        .AfterUpgrade((settings, fromVersion) => settings.FontScale = Math.Clamp(settings.FontScale, 0.5, 3));
 }
 
 AppSettingsStore store = new(AppPaths.For("MyApp"));

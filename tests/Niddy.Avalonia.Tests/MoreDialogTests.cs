@@ -179,4 +179,88 @@ public class MoreDialogTests
         Assert.True(dialog.ButtonCopyDetails.IsVisible);
         Assert.Contains("Inner", dialog.Details);
     }
+
+    [AvaloniaFact]
+    public void MarkdownDialog_ContentHeightDefaultsToFittingUpTo420()
+    {
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
+
+        _ = Dialog.Markdown.Open(inner, "Notes", "Short", displayMode: DialogDisplayMode.Overlay);
+        Pump();
+        Control viewer = Shown<MarkdownDialog>(host).Viewer;
+
+        Assert.Equal(420, viewer.MaxHeight);
+        Assert.True(double.IsNaN(viewer.Height));
+        Assert.True(viewer.Bounds.Height < 420);
+    }
+
+    [AvaloniaFact]
+    public void MarkdownDialog_ContentHeightSetsTheViewHeight()
+    {
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
+
+        _ = Dialog.Markdown.Open(inner, "Notes", "Short", displayMode: DialogDisplayMode.Overlay, contentHeight: 600);
+        Pump();
+        Control viewer = Shown<MarkdownDialog>(host).Viewer;
+
+        Assert.Equal(600, viewer.Height);
+        Assert.Equal(600, viewer.Bounds.Height);
+    }
+
+    [AvaloniaFact]
+    public void ContentHeight_AppliesToEveryDialogWithAScrollingArea()
+    {
+        (DialogOverlayHost host, TextBlock inner) = ShowOverlayHost();
+        DialogDisplayMode overlay = DialogDisplayMode.Overlay;
+
+        _ = Dialog.Table.Open(inner, "People", "", People, displayMode: overlay, contentHeight: 610);
+        Pump();
+        Assert.Equal(610, Shown<TableDialog>(host).Grid.Height);
+
+        _ = Dialog.Table.Pick(inner, "People", "", People, displayMode: overlay, contentHeight: 620);
+        Pump();
+        Assert.Equal(620, Shown<TableDialog>(host).Grid.Height);
+
+        _ = Dialog.Selection.Open(inner, "Pick", "", People, p => p.Name, displayMode: overlay, contentHeight: 630);
+        Pump();
+        Assert.Equal(630, Shown<SelectionDialog>(host).List.Height);
+
+        _ = Dialog.MultiInput.Open(inner, "Form", "", [("Name", "")], displayMode: overlay, contentHeight: 640);
+        Pump();
+        Assert.Equal(640, Shown<MultiInputDialog>(host).FieldsArea.Height);
+
+        _ = Dialog.Exception.Open(inner, "Oops", "", new InvalidOperationException("Boom"), "", displayMode: overlay, contentHeight: 650);
+        Pump();
+        ScrollViewer details = Shown<ExceptionDialog>(host).DetailsArea;
+        Assert.Equal(650, details.Height);
+        Assert.True(double.IsPositiveInfinity(details.MaxHeight));
+
+        _ = Dialog.Web.OpenHtml(inner, "Help", "<p>Hi</p>", displayMode: overlay);
+        Pump();
+        Assert.Equal(560, Shown<WebDialog>(host).PanelWebHost.Height);
+
+        _ = Dialog.Web.Open(inner, "Page", new Uri("https://example.com"), displayMode: overlay, contentHeight: 660);
+        Pump();
+        Assert.Equal(660, Shown<WebDialog>(host).PanelWebHost.Height);
+
+        _ = Dialog.Web.OpenHtml(inner, "Help", "<p>Hi</p>", displayMode: overlay, contentHeight: 120);
+        Pump();
+        Assert.Equal(120, Shown<WebDialog>(host).PanelWebHost.Bounds.Height);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(0d)]
+    [InlineData(-1d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void ContentHeight_MustBePositiveAndFinite(double height)
+    {
+        (_, TextBlock inner) = ShowOverlayHost();
+
+        ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            _ = Dialog.Markdown.Open(inner, "Notes", "Text", displayMode: DialogDisplayMode.Overlay, contentHeight: height);
+        });
+        Assert.Equal("contentHeight", ex.ParamName);
+    }
 }

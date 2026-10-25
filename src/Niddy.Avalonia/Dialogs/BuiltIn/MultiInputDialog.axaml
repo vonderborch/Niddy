@@ -7,7 +7,7 @@
                       x:Class="Niddy.Avalonia.Dialogs.BuiltIn.MultiInputDialog"
                       x:ClassModifier="internal">
 
-    <ScrollViewer MaxHeight="300">
+    <ScrollViewer Name="ScrollViewerFields" MaxHeight="300">
         <StackPanel Name="PanelFields" Orientation="Vertical" Spacing="4" />
     </ScrollViewer>
 
