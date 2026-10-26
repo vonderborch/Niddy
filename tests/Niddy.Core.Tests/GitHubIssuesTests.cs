@@ -72,6 +72,39 @@ public class GitHubIssuesTests
             handler.Requests[0].RequestUri!.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://other.example.com/api/v3/")]
+    public async Task CreateAsync_ApiAddress_TakesPrecedenceOverTheClients(string? clientAddress)
+    {
+        FakeHandler handler = new(HttpStatusCode.Created, Created);
+        HttpClient client = new(handler) { BaseAddress = clientAddress is null ? null : new Uri(clientAddress) };
+
+        await GitHubIssues.CreateAsync("owner/repo", "secret", new GitHubIssue { Title = "T" }, client,
+            new Uri("https://github.example.com/api/v3"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/issues",
+            handler.Requests[0].RequestUri!.AbsoluteUri);
+        Assert.Equal("Bearer secret", handler.Requests[0].Headers.Authorization!.ToString());
+    }
+
+    [Theory]
+    [InlineData("api/v3/")]
+    [InlineData("ftp://github.example.com/api/v3/")]
+    public async Task CreateAsync_RejectsAnApiAddressThatIsntAbsoluteHttp(string address)
+    {
+        FakeHandler handler = new(HttpStatusCode.Created, Created);
+        Uri apiAddress = new(address, UriKind.RelativeOrAbsolute);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            GitHubIssues.CreateAsync("owner/repo", "secret", new GitHubIssue { Title = "T" }, new HttpClient(handler),
+                apiAddress, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            GitHubIssues.CreateOrOpenAsync("owner/repo", null, new GitHubIssue { Title = "T" }, openUrl: _ => { },
+                apiAddress: apiAddress, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public async Task CreateAsync_ReturnsTheNewIssue()
     {
@@ -569,6 +602,21 @@ public class GitHubIssuesTests
         Assert.Equal(42, result.Value.Issue!.Number);
         Assert.Null(result.Value.ApiError);
         Assert.Empty(opened);
+    }
+
+    [Fact]
+    public async Task CreateOrOpenAsync_SendsToTheApiAddress()
+    {
+        FakeHandler handler = new(HttpStatusCode.Created, Created);
+
+        Result<GitHubIssueSubmission> result = await GitHubIssues.CreateOrOpenAsync("owner/repo", "secret",
+            new GitHubIssue { Title = "T" }, new HttpClient(handler), _ => { },
+            apiAddress: new Uri("https://github.example.com/api/v3/"),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(42, result.Value!.Issue!.Number);
+        Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/issues",
+            handler.Requests[0].RequestUri!.AbsoluteUri);
     }
 
     [Fact]

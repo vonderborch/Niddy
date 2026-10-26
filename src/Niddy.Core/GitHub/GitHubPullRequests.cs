@@ -55,11 +55,12 @@ public static class GitHubPullRequests
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="filter">Which pull requests, and their order. Null is open ones, newest first.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">
-    /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the API address, e.g.
-    /// <c>https://github.example.com/api/v3/</c> for GitHub Enterprise Server. Null uses a shared client and
-    /// <c>https://api.github.com/</c>.
+    /// The client to send with, or null for a shared one. It sends to <paramref name="options"/>'
+    /// <see cref="GitHubReadOptions.ApiAddress"/>, else to the client's <see cref="HttpClient.BaseAddress"/>, else to
+    /// <c>https://api.github.com/</c>. For GitHub Enterprise Server, set the option to e.g.
+    /// <c>https://github.example.com/api/v3/</c>.
     /// </param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>
@@ -95,7 +96,7 @@ public static class GitHubPullRequests
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="number">The pull request number.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -131,7 +132,7 @@ public static class GitHubPullRequests
     /// <param name="filter">Which pull requests, and their order. Null is open ones, newest first.</param>
     /// <param name="page">Which page, from 1.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>

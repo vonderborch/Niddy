@@ -16,8 +16,8 @@ Reads a repository's pull requests through GitHub's REST API: a filtered list, o
 | `List(…)` · `Get(…)` · `ListPage(…)` | Synchronous versions, with the same parameters. They work where [`WebContent`'s](../Web/WebContent.md#synchronous-versions) do: not in the browser, and only with a handler that supports synchronous sends (the shared client does, the native Android and iOS handlers don't). |
 
 - **`repository`** is `owner/name`. Anything else throws `ArgumentException`. A `number`, `maxCount` or `page` under 1, or a `pageSize` outside 1 to 100, throws `ArgumentOutOfRangeException`.
-- **`options`** is a [`GitHubReadOptions`](GitHubReadOptions.md): a token and a disk cache. Null sends no token and caches nothing, which works for public repositories within GitHub's 60 requests an hour per IP address.
-- **`httpClient`.** Null uses a shared client and `https://api.github.com/`. If yours has a `BaseAddress`, that's the API address, e.g. `https://github.example.com/api/v3/` for GitHub Enterprise Server.
+- **`options`** is a [`GitHubReadOptions`](GitHubReadOptions.md): a token, the API address and a disk cache. Null sends no token and caches nothing, which works for public repositories within GitHub's 60 requests an hour per IP address.
+- **`httpClient`.** Null uses a shared client. Requests go to the options' [`ApiAddress`](GitHubReadOptions.md#the-api-address), else the client's `BaseAddress`, else `https://api.github.com/`; for GitHub Enterprise Server, set `ApiAddress` to e.g. `https://github.example.com/api/v3/`.
 - **Cancelling** `cancellationToken` throws `OperationCanceledException`. Everything else that goes wrong is a failed `Result` with one of the [`ErrorCodes`](#errorcodes).
 
 ### GitHubPullRequest

@@ -107,12 +107,14 @@ public static class GitHubProjects
     /// <see cref="GitHubProject.IsClosed"/>).
     /// </summary>
     /// <param name="owner">The user's or organization's login, e.g. <c>octocat</c>.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
     /// <param name="httpClient">
-    /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the REST API address, and
-    /// GraphQL's is worked out from it: <c>https://github.example.com/api/v3/</c> for GitHub Enterprise Server sends to
-    /// <c>https://github.example.com/api/graphql</c>. Null uses a shared client and <c>https://api.github.com/graphql</c>.
+    /// The client to send with, or null for a shared one. The REST API address is <paramref name="options"/>'
+    /// <see cref="GitHubReadOptions.ApiAddress"/>, else the client's <see cref="HttpClient.BaseAddress"/>, else
+    /// <c>https://api.github.com/</c>, and GraphQL's is worked out from it: <c>https://github.example.com/api/v3/</c>
+    /// for GitHub Enterprise Server sends to <c>https://github.example.com/api/graphql</c>, and
+    /// <c>https://api.github.com/</c> to <c>https://api.github.com/graphql</c>.
     /// </param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>
@@ -146,7 +148,7 @@ public static class GitHubProjects
     /// user or organization; this is the ones shown on the repository's Projects tab.
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the requests.</param>
@@ -182,7 +184,7 @@ public static class GitHubProjects
     /// <summary>One project by its owner and number.</summary>
     /// <param name="owner">The login of the user or organization that owns it.</param>
     /// <param name="number">The project number: the <c>5</c> in <c>github.com/orgs/acme/projects/5</c>.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -216,7 +218,7 @@ public static class GitHubProjects
     /// </summary>
     /// <param name="owner">The login of the user or organization that owns the project.</param>
     /// <param name="number">The project number.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the requests.</param>
@@ -253,7 +255,7 @@ public static class GitHubProjects
     /// </summary>
     /// <param name="owner">The login of the user or organization that owns the project.</param>
     /// <param name="number">The project number.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -291,7 +293,7 @@ public static class GitHubProjects
     /// <see cref="ItemPage{T}.PageCount"/> say how many there are.
     /// </remarks>
     /// <param name="owner">The user's or organization's login, e.g. <c>octocat</c>.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
     /// <param name="cursor">The previous page's <see cref="ItemPage{T}.NextCursor"/>, or null for the first page.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
@@ -326,7 +328,7 @@ public static class GitHubProjects
     /// </summary>
     /// <inheritdoc cref="ListPageAsync" path="/remarks"/>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
     /// <param name="cursor">The previous page's <see cref="ItemPage{T}.NextCursor"/>, or null for the first page.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
@@ -367,7 +369,7 @@ public static class GitHubProjects
     /// <inheritdoc cref="ListPageAsync" path="/remarks"/>
     /// <param name="owner">The login of the user or organization that owns the project.</param>
     /// <param name="number">The project number.</param>
-    /// <param name="options">The token, which is required, and a cache.</param>
+    /// <param name="options">The token, which is required, the API address and a cache.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
     /// <param name="cursor">The previous page's <see cref="ItemPage{T}.NextCursor"/>, or null for the first page.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>

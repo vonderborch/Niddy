@@ -422,19 +422,20 @@ Result<GitHubIssueReference> created = await GitHubIssues.CreateAsync("owner/rep
 // Too long for GitHub (65,536 chars) or a URL (~8,000): sections are cut first (shared evenly, "… (cut)"), then Body; reporter/details kept
 // Fails (no throw) with Error.Code in GitHubIssues.ErrorCodes: Unauthorized, Forbidden, RateLimited, NotFound, IssuesDisabled, Invalid, Failed, Network
 // Token: fine-grained PAT, one repo, Issues read/write only (a shipped token can be extracted). Labels/assignees/milestone are
-//   silently dropped unless the token has push access. Pass an HttpClient with BaseAddress for GitHub Enterprise.
+//   silently dropped unless the token has push access. GitHub Enterprise: pass apiAddress (beats HttpClient.BaseAddress; CreateOrOpenAsync also wants baseAddress for the form).
 GitHubIssues.OpenInBrowser("owner/repo", issue);   // no token: prefilled new-issue form; GetNewIssueUrl for Avalonia's UriLauncher
 // API, else the form (no token, or Unauthorized/Forbidden/NotFound/RateLimited/Invalid); other failures returned. Avalonia: pass openUrl
 Result<GitHubIssueSubmission> sent = await GitHubIssues.CreateOrOpenAsync("owner/repo", tokenOrNull, issue, openUrl: url => _ = UriLauncher.TryLaunchAsync(control, url));
 // sent.Value.OpenedInBrowser / .Issue / .ApiError; can't open the browser: ErrorCodes.BrowserUnavailable
 // Sync: GitHubIssues.Create(…) / CreateOrOpen(…), same parameters and limits as WebContent's sync versions
-// Set up once instead (keep it for the app's lifetime): same methods minus repository/token/httpClient/openUrl/baseAddress
-GitHubIssueClient issues = new("owner/repo", tokenOrNull, httpClient) { Reporter = reporter, OpenUrl = url => _ = UriLauncher.TryLaunchAsync(control, url) };
+// Set up once instead (keep it for the app's lifetime): same methods minus repository/token/httpClient/openUrl/baseAddress/apiAddress
+GitHubIssueClient issues = new("owner/repo", tokenOrNull, httpClient) { Reporter = reporter, OpenUrl = url => _ = UriLauncher.TryLaunchAsync(control, url) };   // Enterprise: { ApiAddress = …, BaseAddress = … }
 await issues.CreateOrOpenAsync(crash);   // also CreateAsync (throws InvalidOperationException without a token), Create, CreateOrOpen, GetNewIssueUrl, OpenInBrowser
 // Reporter fills in issues whose Reporter is null; HasToken says whether CreateAsync can be used
 
 // Reading GitHub (Niddy.Core.GitHub), read-only: issues and PRs via REST, projects (v2 only) via GraphQL
 GitHubReadOptions read = new() { Token = tokenOrNull, CacheDirectory = Path.Combine(paths.Cache, "github") };   // CacheDuration defaults to Zero: always asks, 304s are free, offline → cached copy
+// GitHub Enterprise: read with { ApiAddress = new Uri("https://ghe.example.com/api/v3/") }. Beats HttpClient.BaseAddress, so one shared client serves every server; GraphQL → /api/graphql
 Result<IReadOnlyList<GitHubIssueInfo>> open = await GitHubIssues.ListAsync("owner/repo",
     new GitHubIssueFilter { Labels = ["bug"], Sort = GitHubIssueSort.Updated }, maxCount: 50, options: read);   // PRs skipped unless IncludePullRequests
 // GitHubIssueInfo (not GitHubIssue, which is for opening one): Number, Title, Body, State (GitHubItemState), IsPullRequest, Labels, CommentCount, …
@@ -463,7 +464,7 @@ Result<ItemPage<GitHubProjectItem>> next = await GitHubProjects.ListItemsPageAsy
 GitHubReleaseOptions releaseOptions = new()
 {
     CacheDirectory = Path.Combine(paths.Cache, "releases"),   // fresh → no request; stale → ETag (304 is free); offline/rate-limited/5xx → stale copy
-    // Token = …, IncludePrereleases = true, CacheDuration = TimeSpan.FromHours(6)
+    // Token = …, IncludePrereleases = true, CacheDuration = TimeSpan.FromHours(6), ApiAddress = new Uri("https://ghe.example.com/api/v3/")
 };
 Result<GitHubUpdateCheck> check = await GitHubReleases.CheckForUpdateAsync("owner/app", currentVersion, releaseOptions);
 // currentVersion: a string ("v1.2.0", AssemblyInformationalVersion with +build is fine) or a Version. Semver: 1.2.0-beta.10 > -beta.2, release > prerelease

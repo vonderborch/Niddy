@@ -8,7 +8,8 @@ namespace Niddy.Core.GitHub;
 
 /// <summary>
 /// The contents of a GitHub issue: a bug report, a feature request or anything else. Pass it to
-/// <see cref="GitHubIssues.CreateAsync"/> to open it through the API, or to <see cref="GitHubIssues.OpenInBrowser"/>
+/// <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> to open it
+/// through the API, or to <see cref="GitHubIssues.OpenInBrowser"/>
 /// to let the user review and submit it themselves.
 /// </summary>
 /// <example>
@@ -75,7 +76,8 @@ public sealed record GitHubIssue
 
     /// <summary>
     /// Identifies the problem, so that reports of the same one go to one issue. When it's set,
-    /// <see cref="GitHubIssues.CreateAsync"/> first looks for an open issue with the same fingerprint and, if there is
+    /// <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> first
+    /// looks for an open issue with the same fingerprint and, if there is
     /// one, adds the report to it as a comment instead of opening another. Any text works, e.g. <c>export-crash</c>;
     /// only a hash of it goes in the issue, as a hidden marker at the end of the body. <see cref="FromException"/> sets
     /// it to the exception's type and where it was thrown. Null, the default, always opens a new issue.

@@ -91,6 +91,23 @@ public class GitHubIssueClientTests
     }
 
     [Fact]
+    public async Task CreateAsync_SearchesAndCommentsAtTheApiAddress()
+    {
+        RoutedHandler handler = new(request => request.Method == HttpMethod.Get
+            ? Respond(HttpStatusCode.OK, SearchResults(Item(7, "Crash", Fingerprinted.FormatBody())))
+            : Respond(HttpStatusCode.Created, Commented));
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://other.example.com/api/v3/") };
+
+        await GitHubIssues.CreateAsync("owner/repo", "secret", Fingerprinted, client,
+            new Uri("https://github.example.com/api/v3/"), TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("https://github.example.com/api/v3/search/issues?",
+            handler.Requests[0].RequestUri!.AbsoluteUri);
+        Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/issues/7/comments",
+            handler.Requests[1].RequestUri!.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task CreateAsync_CommentStartsWithTheTitleWhenItDiffers()
     {
         RoutedHandler handler = new(request => request.Method == HttpMethod.Get
@@ -207,6 +224,34 @@ public class GitHubIssueClientTests
         Assert.Equal("**Reported by:** Jane", (string?)JsonNode.Parse(handler.Bodies[0])!["body"]);
         Assert.Equal("**Reported by:** Bob", (string?)JsonNode.Parse(handler.Bodies[1])!["body"]);
     }
+
+    [Fact]
+    public async Task ApiAddress_IsWhereTheClientSends()
+    {
+        RoutedHandler handler = new(_ => Respond(HttpStatusCode.Created, Created));
+        GitHubIssueClient client = new("owner/repo", "secret",
+            new HttpClient(handler) { BaseAddress = new Uri("https://other.example.com/api/v3/") })
+        {
+            ApiAddress = new Uri("https://github.example.com/api/v3/"),
+            OpenUrl = _ => { },
+        };
+
+        await client.CreateAsync(new GitHubIssue { Title = "T" }, TestContext.Current.CancellationToken);
+        client.Create(new GitHubIssue { Title = "T" }, TestContext.Current.CancellationToken);
+        await client.CreateOrOpenAsync(new GitHubIssue { Title = "T" }, TestContext.Current.CancellationToken);
+        client.CreateOrOpen(new GitHubIssue { Title = "T" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(4, handler.Requests.Count);
+        Assert.All(handler.Requests, request =>
+            Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/issues", request.RequestUri!.AbsoluteUri));
+    }
+
+    [Theory]
+    [InlineData("api/v3/")]
+    [InlineData("ftp://github.example.com/api/v3/")]
+    public void ApiAddress_ThatIsntAbsoluteHttp_Throws(string address) =>
+        Assert.Throws<ArgumentException>(() =>
+            new GitHubIssueClient("owner/repo") { ApiAddress = new Uri(address, UriKind.RelativeOrAbsolute) });
 
     [Fact]
     public void Create_WorksSynchronously()

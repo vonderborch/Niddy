@@ -36,18 +36,37 @@ internal static class GitHubApi
     public static string RepositoryPath(string owner, string name) =>
         $"repos/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(name)}";
 
-    /// <summary><paramref name="relative"/> under the client's <see cref="HttpClient.BaseAddress"/>, or api.github.com.</summary>
-    public static Uri ApiAddress(HttpClient client, string relative) =>
-        new(EnsureTrailingSlash(client.BaseAddress ?? DefaultApiAddress), relative);
+    /// <summary>
+    /// The REST API address: <paramref name="apiAddress"/> from the options, else the client's
+    /// <see cref="HttpClient.BaseAddress"/>, else api.github.com.
+    /// </summary>
+    public static Uri ApiBase(HttpClient client, Uri? apiAddress) =>
+        EnsureTrailingSlash(apiAddress ?? client.BaseAddress ?? DefaultApiAddress);
+
+    /// <summary><paramref name="relative"/> under <see cref="ApiBase"/>.</summary>
+    public static Uri ApiAddress(HttpClient client, Uri? apiAddress, string relative) =>
+        new(ApiBase(client, apiAddress), relative);
 
     /// <summary>
-    /// The GraphQL endpoint for the client's API address: <c>https://api.github.com/graphql</c>, or for GitHub
+    /// The GraphQL endpoint for <see cref="ApiBase"/>: <c>https://api.github.com/graphql</c>, or for GitHub
     /// Enterprise Server's <c>https://host/api/v3/</c>, <c>https://host/api/graphql</c>.
     /// </summary>
-    public static Uri GraphQLAddress(HttpClient client)
+    public static Uri GraphQLAddress(HttpClient client, Uri? apiAddress)
     {
-        Uri api = EnsureTrailingSlash(client.BaseAddress ?? DefaultApiAddress);
+        Uri api = ApiBase(client, apiAddress);
         return new Uri(api, api.AbsolutePath.EndsWith("/v3/", StringComparison.OrdinalIgnoreCase) ? "../graphql" : "graphql");
+    }
+
+    /// <summary>Checks an options' API address: null, or an absolute <c>http</c> or <c>https</c> URI.</summary>
+    public static Uri? CheckApiAddress(Uri? apiAddress, string paramName)
+    {
+        if (apiAddress is not null
+            && (!apiAddress.IsAbsoluteUri || (apiAddress.Scheme != Uri.UriSchemeHttps && apiAddress.Scheme != Uri.UriSchemeHttp)))
+        {
+            throw new ArgumentException($"Expected an absolute http or https address, got \"{apiAddress}\".", paramName);
+        }
+
+        return apiAddress;
     }
 
     public static Uri EnsureTrailingSlash(Uri address) =>
@@ -146,10 +165,11 @@ internal static class GitHubApi
     /// <c>errors</c> isn't cached.
     /// </summary>
     /// <remarks>Network failures with nothing cached propagate, for the caller to turn into a result.</remarks>
-    public static async ValueTask<GitHubResponse> GraphQLAsync(HttpClient client, string query, JsonObject variables,
-        string? token, string? cacheDirectory, TimeSpan cacheDuration, bool sync, CancellationToken cancellationToken)
+    public static async ValueTask<GitHubResponse> GraphQLAsync(HttpClient client, Uri? apiAddress, string query,
+        JsonObject variables, string? token, string? cacheDirectory, TimeSpan cacheDuration, bool sync,
+        CancellationToken cancellationToken)
     {
-        Uri address = GraphQLAddress(client);
+        Uri address = GraphQLAddress(client, apiAddress);
         string body = new JsonObject { ["query"] = query, ["variables"] = variables }.ToJsonString();
         string key = $"{address.AbsoluteUri}\n{body}";
         string? cachePath = cacheDirectory is null ? null : CachePath(cacheDirectory, key, token);

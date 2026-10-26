@@ -26,10 +26,10 @@ public sealed class GitHubIssueClient
     /// <summary>Sets up issue reporting for <paramref name="repository"/>.</summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="token">
-    /// A token that can create issues in <paramref name="repository"/>, as for <see cref="GitHubIssues.CreateAsync"/>,
+    /// A token that can create issues in <paramref name="repository"/>, as for <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>,
     /// or null to only open the browser form.
     /// </param>
-    /// <param name="httpClient">The client for API calls, as for <see cref="GitHubIssues.CreateAsync"/>.</param>
+    /// <param name="httpClient">The client for API calls, as for <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>.</param>
     /// <exception cref="ArgumentException"><paramref name="repository"/> isn't <c>owner/name</c>.</exception>
     public GitHubIssueClient(string repository, string? token = null, HttpClient? httpClient = null)
     {
@@ -55,12 +55,26 @@ public sealed class GitHubIssueClient
     public Uri? BaseAddress { get; init; }
 
     /// <summary>
+    /// The API address, for GitHub Enterprise Server, e.g. <c>https://github.example.com/api/v3/</c>. Null uses
+    /// <see cref="HttpClient"/>'s <see cref="System.Net.Http.HttpClient.BaseAddress"/>, or <c>https://api.github.com/</c>
+    /// without one. It takes precedence over the client's, so clients for several servers can share one
+    /// <see cref="System.Net.Http.HttpClient"/>. Set <see cref="BaseAddress"/> too, for the browser form.
+    /// </summary>
+    /// <exception cref="ArgumentException">Setting an address that isn't an absolute <c>http</c> or <c>https</c> one.</exception>
+    public Uri? ApiAddress
+    {
+        get;
+        init => field = GitHubApi.CheckApiAddress(value, nameof(this.ApiAddress));
+    }
+
+    /// <summary>
     /// Opens the form's URL in <see cref="CreateOrOpenAsync"/>. Null uses <see cref="UrlLauncher.Open"/>; in an Avalonia
     /// app, set it to its launcher, e.g. <c>url =&gt; _ = UriLauncher.TryLaunchAsync(control, url)</c>.
     /// </summary>
     public Action<string>? OpenUrl { get; init; }
 
-    /// <summary>Creates the issue through the API. See <see cref="GitHubIssues.CreateAsync"/>.</summary>
+    /// <summary>Creates the issue through the API. See
+    /// <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>.</summary>
     /// <param name="issue">The issue.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -73,10 +87,12 @@ public sealed class GitHubIssueClient
     public Task<Result<GitHubIssueReference>> CreateAsync(GitHubIssue issue,
         CancellationToken cancellationToken = default) =>
         GitHubIssues.CreateAsync(this.Repository, this.RequireToken(), this.WithReporter(issue), this.HttpClient,
-            cancellationToken);
+            this.ApiAddress, cancellationToken);
 
     /// <summary>
-    /// Creates the issue through the API, blocking until it's done. See <see cref="GitHubIssues.Create"/> for where the
+    /// Creates the issue through the API, blocking until it's done. See
+    /// <see cref="GitHubIssues.Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
+    /// the
     /// synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="CreateAsync" path="/param"/>
@@ -86,11 +102,12 @@ public sealed class GitHubIssueClient
     [UnsupportedOSPlatform("browser")]
     public Result<GitHubIssueReference> Create(GitHubIssue issue, CancellationToken cancellationToken = default) =>
         GitHubIssues.Create(this.Repository, this.RequireToken(), this.WithReporter(issue), this.HttpClient,
-            cancellationToken);
+            this.ApiAddress, cancellationToken);
 
     /// <summary>
     /// Creates the issue through the API when it can, and otherwise opens the filled-in new-issue form with
-    /// <see cref="OpenUrl"/>. See <see cref="GitHubIssues.CreateOrOpenAsync"/>.
+    /// <see cref="OpenUrl"/>. See
+    /// <see cref="GitHubIssues.CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>.
     /// </summary>
     /// <param name="issue">The issue.</param>
     /// <param name="cancellationToken">Cancels the API request.</param>
@@ -103,11 +120,13 @@ public sealed class GitHubIssueClient
     public Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(GitHubIssue issue,
         CancellationToken cancellationToken = default) =>
         GitHubIssues.CreateOrOpenAsync(this.Repository, this._token, this.WithReporter(issue), this.HttpClient,
-            this.OpenUrl, this.BaseAddress, cancellationToken);
+            this.OpenUrl, this.BaseAddress, this.ApiAddress, cancellationToken);
 
     /// <summary>
     /// Creates the issue through the API when it can, and otherwise opens the filled-in new-issue form, blocking until
-    /// it's done. See <see cref="GitHubIssues.Create"/> for where the synchronous versions work.
+    /// it's done. See
+    /// <see cref="GitHubIssues.Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
+    /// the synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="CreateOrOpenAsync" path="/param"/>
     /// <inheritdoc cref="CreateOrOpenAsync" path="/returns"/>
@@ -116,7 +135,7 @@ public sealed class GitHubIssueClient
     [UnsupportedOSPlatform("browser")]
     public Result<GitHubIssueSubmission> CreateOrOpen(GitHubIssue issue, CancellationToken cancellationToken = default) =>
         GitHubIssues.CreateOrOpen(this.Repository, this._token, this.WithReporter(issue), this.HttpClient,
-            this.OpenUrl, this.BaseAddress, cancellationToken);
+            this.OpenUrl, this.BaseAddress, this.ApiAddress, cancellationToken);
 
     /// <summary>The new-issue form's URL, filled in. See <see cref="GitHubIssues.GetNewIssueUrl"/>.</summary>
     /// <param name="issue">The issue.</param>

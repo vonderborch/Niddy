@@ -2,7 +2,9 @@ using Niddy.Core.Results;
 
 namespace Niddy.Core.GitHub;
 
-/// <summary>Which way <see cref="GitHubIssues.CreateOrOpenAsync"/> sent an issue.</summary>
+/// <summary>Which way
+/// <see cref="GitHubIssues.CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+/// sent an issue.</summary>
 public sealed record GitHubIssueSubmission
 {
     private GitHubIssueSubmission(GitHubIssueReference? issue, string? newIssueUrl, Error? apiError)

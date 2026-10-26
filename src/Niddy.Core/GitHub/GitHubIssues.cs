@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Runtime.Versioning;
 using System.Text;
@@ -9,9 +10,12 @@ using Niddy.Core.Web;
 namespace Niddy.Core.GitHub;
 
 /// <summary>
-/// Opens GitHub issues from anywhere in an app: bug reports, feature requests, anything. <see cref="CreateAsync"/>
+/// Opens GitHub issues from anywhere in an app: bug reports, feature requests, anything.
+/// <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>
 /// creates the issue through the REST API with a token; <see cref="OpenInBrowser"/> needs no token and opens GitHub's
-/// new-issue form, filled in, for the user to submit; <see cref="CreateOrOpenAsync"/> tries the first and falls back to
+/// new-issue form, filled in, for the user to submit;
+/// <see cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+/// tries the first and falls back to
 /// the second. It also reads existing issues: <see cref="ListAsync"/>, <see cref="GetAsync"/>,
 /// <see cref="SearchAsync"/> and <see cref="ListCommentsAsync"/>.
 /// </summary>
@@ -24,7 +28,10 @@ namespace Niddy.Core.GitHub;
 public static partial class GitHubIssues
 {
     /// <summary>
-    /// The <see cref="Error.Code"/> values <see cref="CreateAsync"/>, <see cref="CreateOrOpenAsync"/> and the reads
+    /// The <see cref="Error.Code"/> values
+    /// <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>,
+    /// <see cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+    /// and the reads
     /// fail with.
     /// </summary>
     public static class ErrorCodes
@@ -60,7 +67,8 @@ public static partial class GitHubIssues
         /// </summary>
         public const string Network = "Network";
 
-        /// <summary><see cref="CreateOrOpenAsync"/> needed the browser and couldn't open it.</summary>
+        /// <summary><see cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+        /// needed the browser and couldn't open it.</summary>
         public const string BrowserUnavailable = "BrowserUnavailable";
     }
 
@@ -85,10 +93,11 @@ public static partial class GitHubIssues
     /// first, then the body text. If it has a <see cref="GitHubIssue.Fingerprint"/> and there's already an open issue
     /// with the same one, the report is added to that issue as a comment instead.
     /// </param>
-    /// <param name="httpClient">
-    /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the API address, e.g.
-    /// <c>https://github.example.com/api/v3/</c> for GitHub Enterprise Server. Null uses a shared client and
-    /// <c>https://api.github.com/</c>.
+    /// <param name="httpClient">The client to send with, or null for a shared one.</param>
+    /// <param name="apiAddress">
+    /// The API address, for GitHub Enterprise Server, e.g. <c>https://github.example.com/api/v3/</c>. Null uses
+    /// <paramref name="httpClient"/>'s <see cref="HttpClient.BaseAddress"/>, or <c>https://api.github.com/</c> without
+    /// one. It takes precedence over the client's, so one client can send to several servers. The token is sent here.
     /// </param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -97,27 +106,44 @@ public static partial class GitHubIssues
     /// <see cref="HttpRequestException"/> with the status code, and their message includes GitHub's.
     /// </returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="repository"/> isn't <c>owner/name</c>, <paramref name="token"/> is blank, or the issue's title is
-    /// blank.
+    /// <paramref name="repository"/> isn't <c>owner/name</c>, <paramref name="token"/> is blank, the issue's title is
+    /// blank, or <paramref name="apiAddress"/> isn't an absolute <c>http</c> or <c>https</c> address.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static Task<Result<GitHubIssueReference>> CreateAsync(string repository, string token,
-        GitHubIssue issue, HttpClient? httpClient = null, CancellationToken cancellationToken = default) =>
-        CreateCoreAsync(repository, token, issue, httpClient, false, cancellationToken).AsTask();
+        GitHubIssue issue, HttpClient? httpClient = null, Uri? apiAddress = null,
+        CancellationToken cancellationToken = default) =>
+        CreateCoreAsync(repository, token, issue, httpClient, apiAddress, false, cancellationToken).AsTask();
 
     /// <summary>
     /// Creates an issue through GitHub's REST API, blocking until it's done. Otherwise the same as
-    /// <see cref="CreateAsync"/>. Like <see cref="WebContent"/>'s synchronous methods it doesn't work in the browser,
-    /// and a client you pass needs a handler that supports synchronous sends.
+    /// <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>. Like
+    /// <see cref="WebContent"/>'s synchronous methods it doesn't work in the browser, and a client you pass needs a
+    /// handler that supports synchronous sends.
     /// </summary>
-    /// <inheritdoc cref="CreateAsync" path="/param"/>
-    /// <inheritdoc cref="CreateAsync" path="/returns"/>
-    /// <inheritdoc cref="CreateAsync" path="/exception"/>
+    /// <inheritdoc cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)" path="/param"/>
+    /// <inheritdoc cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)" path="/returns"/>
+    /// <inheritdoc cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)" path="/exception"/>
     /// <exception cref="NotSupportedException"><paramref name="httpClient"/>'s handler doesn't support synchronous sends.</exception>
     [UnsupportedOSPlatform("browser")]
     public static Result<GitHubIssueReference> Create(string repository, string token, GitHubIssue issue,
-        HttpClient? httpClient = null, CancellationToken cancellationToken = default) =>
-        SharedHttp.RunSync(CreateCoreAsync(repository, token, issue, httpClient, true, cancellationToken));
+        HttpClient? httpClient = null, Uri? apiAddress = null, CancellationToken cancellationToken = default) =>
+        SharedHttp.RunSync(CreateCoreAsync(repository, token, issue, httpClient, apiAddress, true, cancellationToken));
+
+    // The signatures from before apiAddress, so calls that pass the token positionally still compile.
+
+    /// <inheritdoc cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static Task<Result<GitHubIssueReference>> CreateAsync(string repository, string token, GitHubIssue issue,
+        HttpClient? httpClient, CancellationToken cancellationToken) =>
+        CreateAsync(repository, token, issue, httpClient, null, cancellationToken);
+
+    /// <inheritdoc cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [UnsupportedOSPlatform("browser")]
+    public static Result<GitHubIssueReference> Create(string repository, string token, GitHubIssue issue,
+        HttpClient? httpClient, CancellationToken cancellationToken) =>
+        Create(repository, token, issue, httpClient, null, cancellationToken);
 
     /// <summary>
     /// The URL of GitHub's new-issue form for <paramref name="repository"/>, filled in with the issue's title,
@@ -179,58 +205,82 @@ public static partial class GitHubIssues
     /// Other failures, such as no network or issues being turned off, are returned, since the form wouldn't work either.
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
-    /// <param name="token">A token as for <see cref="CreateAsync"/>, or null to go straight to the browser.</param>
+    /// <param name="token">A token as for <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>, or null to go straight to the browser.</param>
     /// <param name="issue">The issue.</param>
-    /// <param name="httpClient">The client for the API call, as for <see cref="CreateAsync"/>.</param>
+    /// <param name="httpClient">The client for the API call, as for <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>.</param>
     /// <param name="openUrl">
     /// Opens the form's URL. Null uses <see cref="UrlLauncher.Open"/>; in an Avalonia app pass its launcher, e.g.
     /// <c>url =&gt; _ = UriLauncher.TryLaunchAsync(control, url)</c>, which works on every platform. If it throws,
     /// the result is a failure with <see cref="ErrorCodes.BrowserUnavailable"/>.
     /// </param>
-    /// <param name="baseAddress">The GitHub site for the form, as for <see cref="GetNewIssueUrl"/>.</param>
+    /// <param name="baseAddress">
+    /// The GitHub site for the form, as for <see cref="GetNewIssueUrl"/>. For GitHub Enterprise Server, set it as well
+    /// as the API address, or the fallback opens github.com's form.
+    /// </param>
+    /// <param name="apiAddress">The API address, as for <see cref="CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/>.</param>
     /// <param name="cancellationToken">Cancels the API request.</param>
     /// <returns>Which way the issue went, or a failure whose <see cref="Error.Code"/> is one of <see cref="ErrorCodes"/>.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="repository"/> isn't <c>owner/name</c>, or the issue's title is blank.
+    /// <paramref name="repository"/> isn't <c>owner/name</c>, the issue's title is blank, or
+    /// <paramref name="apiAddress"/> isn't an absolute <c>http</c> or <c>https</c> address.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(string repository, string? token,
         GitHubIssue issue, HttpClient? httpClient = null, Action<string>? openUrl = null, Uri? baseAddress = null,
-        CancellationToken cancellationToken = default) =>
-        CreateOrOpenCoreAsync(repository, token, issue, httpClient, openUrl, baseAddress, false, cancellationToken).AsTask();
+        Uri? apiAddress = null, CancellationToken cancellationToken = default) =>
+        CreateOrOpenCoreAsync(repository, token, issue, httpClient, openUrl, baseAddress, apiAddress, false,
+            cancellationToken).AsTask();
 
     /// <summary>
     /// Creates the issue through the API when it can, and otherwise opens the filled-in new-issue form, blocking until
-    /// it's done. Otherwise the same as <see cref="CreateOrOpenAsync"/>; see <see cref="Create"/> for where the
-    /// synchronous versions work.
+    /// it's done. Otherwise the same as
+    /// <see cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>;
+    /// see <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where the
+    /// synchronous
+    /// versions work.
     /// </summary>
-    /// <inheritdoc cref="CreateOrOpenAsync" path="/param"/>
-    /// <inheritdoc cref="CreateOrOpenAsync" path="/returns"/>
-    /// <inheritdoc cref="CreateOrOpenAsync" path="/exception"/>
+    /// <inheritdoc cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)" path="/param"/>
+    /// <inheritdoc cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)" path="/returns"/>
+    /// <inheritdoc cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)" path="/exception"/>
     /// <exception cref="NotSupportedException"><paramref name="httpClient"/>'s handler doesn't support synchronous sends.</exception>
     [UnsupportedOSPlatform("browser")]
     public static Result<GitHubIssueSubmission> CreateOrOpen(string repository, string? token, GitHubIssue issue,
         HttpClient? httpClient = null, Action<string>? openUrl = null, Uri? baseAddress = null,
-        CancellationToken cancellationToken = default) =>
-        SharedHttp.RunSync(CreateOrOpenCoreAsync(repository, token, issue, httpClient, openUrl, baseAddress, true,
-            cancellationToken));
+        Uri? apiAddress = null, CancellationToken cancellationToken = default) =>
+        SharedHttp.RunSync(CreateOrOpenCoreAsync(repository, token, issue, httpClient, openUrl, baseAddress, apiAddress,
+            true, cancellationToken));
+
+    /// <inheritdoc cref="CreateOrOpenAsync(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(string repository, string? token,
+        GitHubIssue issue, HttpClient? httpClient, Action<string>? openUrl, Uri? baseAddress,
+        CancellationToken cancellationToken) =>
+        CreateOrOpenAsync(repository, token, issue, httpClient, openUrl, baseAddress, null, cancellationToken);
+
+    /// <inheritdoc cref="CreateOrOpen(string, string?, GitHubIssue, HttpClient?, Action{string}?, Uri?, Uri?, CancellationToken)"/>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [UnsupportedOSPlatform("browser")]
+    public static Result<GitHubIssueSubmission> CreateOrOpen(string repository, string? token, GitHubIssue issue,
+        HttpClient? httpClient, Action<string>? openUrl, Uri? baseAddress, CancellationToken cancellationToken) =>
+        CreateOrOpen(repository, token, issue, httpClient, openUrl, baseAddress, null, cancellationToken);
 
     private static async ValueTask<Result<GitHubIssueReference>> CreateCoreAsync(string repository, string token,
-        GitHubIssue issue, HttpClient? httpClient, bool sync, CancellationToken cancellationToken)
+        GitHubIssue issue, HttpClient? httpClient, Uri? apiAddress, bool sync, CancellationToken cancellationToken)
     {
         (string owner, string name) = GitHubApi.ParseRepository(repository);
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
         ValidateIssue(issue);
+        GitHubApi.CheckApiAddress(apiAddress, nameof(apiAddress));
 
         HttpClient client = SharedHttp.ClientFor(httpClient, sync);
         if (issue.FingerprintToken is { } fingerprint
-            && await AddToOpenIssueAsync(client, owner, name, token, issue, fingerprint, sync, cancellationToken)
-                .ConfigureAwait(false) is { } existing)
+            && await AddToOpenIssueAsync(client, apiAddress, owner, name, token, issue, fingerprint, sync,
+                cancellationToken).ConfigureAwait(false) is { } existing)
         {
             return existing;
         }
 
-        Uri address = GitHubApi.ApiAddress(client, $"{GitHubApi.RepositoryPath(owner, name)}/issues");
+        Uri address = GitHubApi.ApiAddress(client, apiAddress, $"{GitHubApi.RepositoryPath(owner, name)}/issues");
         using HttpRequestMessage request = GitHubApi.CreateRequest(HttpMethod.Post, address, client, token);
         request.Content = new StringContent(BuildRequestBody(issue).ToJsonString(), Encoding.UTF8, "application/json");
 
@@ -250,13 +300,14 @@ public static partial class GitHubIssues
     /// a comment. Null if there's no such issue, or if the search or the comment fails, so that a new issue is opened
     /// instead: a duplicate is better than a lost report.
     /// </summary>
-    private static async ValueTask<GitHubIssueReference?> AddToOpenIssueAsync(HttpClient client, string owner,
-        string name, string token, GitHubIssue issue, string fingerprint, bool sync, CancellationToken cancellationToken)
+    private static async ValueTask<GitHubIssueReference?> AddToOpenIssueAsync(HttpClient client, Uri? apiAddress,
+        string owner, string name, string token, GitHubIssue issue, string fingerprint, bool sync,
+        CancellationToken cancellationToken)
     {
         try
         {
             string query = $"repo:{owner}/{name} is:issue is:open in:body \"{fingerprint}\"";
-            Uri searchAddress = GitHubApi.ApiAddress(client,
+            Uri searchAddress = GitHubApi.ApiAddress(client, apiAddress,
                 $"search/issues?q={Uri.EscapeDataString(query)}&sort=created&order=asc&per_page=20");
             using HttpRequestMessage search = GitHubApi.CreateRequest(HttpMethod.Get, searchAddress, client, token);
             GitHubResponse found = await GitHubApi.SendAsync(client, search, sync, cancellationToken).ConfigureAwait(false);
@@ -274,7 +325,7 @@ public static partial class GitHubIssues
                 comment = "Reported again.";
             }
 
-            Uri commentAddress = GitHubApi.ApiAddress(client,
+            Uri commentAddress = GitHubApi.ApiAddress(client, apiAddress,
                 $"{GitHubApi.RepositoryPath(owner, name)}/issues/{existing.Number}/comments");
             using HttpRequestMessage post = GitHubApi.CreateRequest(HttpMethod.Post, commentAddress, client, token);
             post.Content = new StringContent(new JsonObject { ["body"] = comment }.ToJsonString(), Encoding.UTF8,
@@ -346,15 +397,17 @@ public static partial class GitHubIssues
     }
 
     private static async ValueTask<Result<GitHubIssueSubmission>> CreateOrOpenCoreAsync(string repository,
-        string? token, GitHubIssue issue, HttpClient? httpClient, Action<string>? openUrl, Uri? baseAddress, bool sync,
-        CancellationToken cancellationToken)
+        string? token, GitHubIssue issue, HttpClient? httpClient, Action<string>? openUrl, Uri? baseAddress,
+        Uri? apiAddress, bool sync, CancellationToken cancellationToken)
     {
+        GitHubApi.CheckApiAddress(apiAddress, nameof(apiAddress));
         string url = GetNewIssueUrl(repository, issue, baseAddress);
         Error? apiError = null;
         if (!string.IsNullOrWhiteSpace(token))
         {
             Result<GitHubIssueReference> created =
-                await CreateCoreAsync(repository, token, issue, httpClient, sync, cancellationToken).ConfigureAwait(false);
+                await CreateCoreAsync(repository, token, issue, httpClient, apiAddress, sync, cancellationToken)
+                    .ConfigureAwait(false);
             if (created.IsSuccess)
             {
                 return GitHubIssueSubmission.Created(created.Value!);

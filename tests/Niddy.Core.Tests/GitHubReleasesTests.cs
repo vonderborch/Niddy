@@ -90,6 +90,19 @@ public sealed class GitHubReleasesTests : IDisposable
         Assert.Null(handler.Requests[0].Headers.Authorization);
     }
 
+    [Fact]
+    public async Task GetLatestAsync_ApiAddressOption_TakesPrecedenceOverTheClients()
+    {
+        FakeHandler handler = new(_ => Json(Release("v1")));
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://other.example.com/api/v3/") };
+        GitHubReleaseOptions options = new() { ApiAddress = new Uri("https://github.example.com/api/v3/") };
+
+        await GitHubReleases.GetLatestAsync("owner/repo", options, client, Token);
+
+        Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/releases/latest",
+            handler.Requests[0].RequestUri!.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.NotFound, GitHubReleases.ErrorCodes.NotFound)]
     [InlineData(HttpStatusCode.Unauthorized, GitHubReleases.ErrorCodes.Unauthorized)]

@@ -18,9 +18,9 @@ To read issues, `ListAsync`, `GetAsync`, `SearchAsync` and `ListCommentsAsync` r
 
 | Member | Description |
 |---|---|
-| `static Task<Result<GitHubIssueReference>> CreateAsync(string repository, string token, GitHubIssue issue, HttpClient? httpClient = null, CancellationToken cancellationToken = default)` | Creates the issue (`POST /repos/{owner}/{repo}/issues`). `repository` is `owner/name`. The body is `issue.FormatBody()`, cut to GitHub's 65,536-character limit, sections first. With a `Fingerprint`, it adds to an open issue with the same one instead (see [Duplicates](#duplicates)). Returns the issue, or a failure with one of the `ErrorCodes`. |
+| `static Task<Result<GitHubIssueReference>> CreateAsync(string repository, string token, GitHubIssue issue, HttpClient? httpClient = null, Uri? apiAddress = null, CancellationToken cancellationToken = default)` | Creates the issue (`POST /repos/{owner}/{repo}/issues`). `repository` is `owner/name`. The body is `issue.FormatBody()`, cut to GitHub's 65,536-character limit, sections first. With a `Fingerprint`, it adds to an open issue with the same one instead (see [Duplicates](#duplicates)). Returns the issue, or a failure with one of the `ErrorCodes`. |
 | `static string GetNewIssueUrl(string repository, GitHubIssue issue, Uri? baseAddress = null)` | The new-issue form's URL, filled in with the title, formatted body, labels, assignees and type. A body that would make the URL longer than about 8,000 characters is cut the same way, sections first, with each cut marked "… (cut)". The milestone is left out: the form takes milestone names, not numbers. |
-| `static Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(string repository, string? token, GitHubIssue issue, HttpClient? httpClient = null, Action<string>? openUrl = null, Uri? baseAddress = null, CancellationToken cancellationToken = default)` | `CreateAsync` if there's a token, falling back to the form (see below). |
+| `static Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(string repository, string? token, GitHubIssue issue, HttpClient? httpClient = null, Action<string>? openUrl = null, Uri? baseAddress = null, Uri? apiAddress = null, CancellationToken cancellationToken = default)` | `CreateAsync` if there's a token, falling back to the form (see below). |
 | `static Task<Result<IReadOnlyList<GitHubIssueInfo>>> ListAsync(string repository, GitHubIssueFilter? filter = null, int maxCount = 30, GitHubReadOptions? options = null, HttpClient? httpClient = null, CancellationToken cancellationToken = default)` | A repository's issues (`GET /repos/{owner}/{repo}/issues`). Null `filter` is open issues, newest first, without pull requests. See [Reading issues](#reading-issues). |
 | `static Task<Result<GitHubIssueInfo>> GetAsync(string repository, int number, GitHubReadOptions? options = null, HttpClient? httpClient = null, CancellationToken cancellationToken = default)` | One issue by number. A pull request's number gives it as an issue, with `IsPullRequest` set. |
 | `static Task<Result<IReadOnlyList<GitHubIssueInfo>>> SearchAsync(string query, int maxCount = 30, GitHubReadOptions? options = null, HttpClient? httpClient = null, CancellationToken cancellationToken = default)` | GitHub's issue search (`GET /search/issues`), e.g. `repo:owner/name is:open label:bug crash`. Best match first, across repositories unless the query narrows it; at most 1,000 results. |
@@ -32,9 +32,12 @@ To read issues, `ListAsync`, `GetAsync`, `SearchAsync` and `ListCommentsAsync` r
 | `static Result<GitHubIssueReference> Create(…)` · `static Result<GitHubIssueSubmission> CreateOrOpen(…)` · `List(…)` · `Get(…)` · `Search(…)` · `ListComments(…)` · `ListPage(…)` · `SearchPage(…)` · `ListCommentsPage(…)` | Synchronous versions of the methods above, with the same parameters. See [Synchronous versions](#synchronous-versions). |
 | `static void OpenInBrowser(string repository, GitHubIssue issue, Uri? baseAddress = null)` | Opens `GetNewIssueUrl` with [`UrlLauncher.Open`](../Web/UrlLauncher.md), so it throws `PlatformNotSupportedException` on Android, watchOS and WASI. In an Avalonia app, pass `GetNewIssueUrl` to [`UriLauncher.TryLaunchAsync`](../../Niddy.Avalonia/UriLauncher.md) instead, which works everywhere. |
 
-All of them throw `ArgumentException` if `repository` isn't `owner/name` or the issue's title is blank, and `CreateAsync` also does if `token` is blank. The reads throw `ArgumentException` for a blank search query and `ArgumentOutOfRangeException` for a `number` or `maxCount` under 1; the page methods throw it for a `page` under 1 or a `pageSize` outside 1 to 100, and `SearchPageAsync` for a page that starts past the first 1,000 results. Cancelling the token throws `OperationCanceledException`; everything else that goes wrong is a failed `Result`.
+All of them throw `ArgumentException` if `repository` isn't `owner/name` or the issue's title is blank, and `CreateAsync` also does if `token` is blank. `CreateAsync` and `CreateOrOpenAsync` throw it for an `apiAddress` that isn't an absolute `http` or `https` address. The reads throw `ArgumentException` for a blank search query and `ArgumentOutOfRangeException` for a `number` or `maxCount` under 1; the page methods throw it for a `page` under 1 or a `pageSize` outside 1 to 100, and `SearchPageAsync` for a page that starts past the first 1,000 results. Cancelling the token throws `OperationCanceledException`; everything else that goes wrong is a failed `Result`.
 
-**`httpClient`.** Null uses a shared client and `https://api.github.com/`. Pass your own to set a timeout, a proxy or a test handler. If it has a `BaseAddress`, that's the API address, e.g. `https://github.example.com/api/v3/` for GitHub Enterprise Server. For the browser methods, `baseAddress` is the site instead, e.g. `https://github.example.com/`.
+**`httpClient`.** Null uses a shared client and `https://api.github.com/`. Pass your own to set a timeout, a proxy or a test handler. For GitHub Enterprise Server:
+- **The API address** is `CreateAsync`'s and `CreateOrOpenAsync`'s `apiAddress`, or the reads' options' [`ApiAddress`](GitHubReadOptions.md#the-api-address), e.g. `https://github.example.com/api/v3/`. It takes precedence over the client's, so one client can send to several servers. The token is sent there.
+- **Otherwise** the client's `BaseAddress` is the API address.
+- **For the browser methods**, `baseAddress` is the site instead, e.g. `https://github.example.com/`. `CreateOrOpenAsync` takes both: without `baseAddress`, its fallback opens github.com's form.
 
 ### Synchronous versions
 
@@ -220,10 +223,11 @@ using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(15) };
 await GitHubIssues.CreateAsync("vonderborch/Niddy", token,
     new GitHubIssue { Title = "How do I change the log folder?", Labels = ["question"], Type = "Task" }, client, ct);
 
-// GitHub Enterprise Server
-using HttpClient enterprise = new() { BaseAddress = new Uri("https://github.example.com/api/v3/") };
-await GitHubIssues.CreateAsync("team/app", token, issue, enterprise);
-string url = GitHubIssues.GetNewIssueUrl("team/app", issue, new Uri("https://github.example.com/"));
+// GitHub Enterprise Server: the API address for the API, the site for the form
+Uri api = new("https://github.example.com/api/v3/"), site = new("https://github.example.com/");
+await GitHubIssues.CreateAsync("team/app", token, issue, client, api, ct);
+await GitHubIssues.CreateOrOpenAsync("team/app", token, issue, client, baseAddress: site, apiAddress: api, cancellationToken: ct);
+string url = GitHubIssues.GetNewIssueUrl("team/app", issue, site);
 
 // A console tool, synchronously
 Result<GitHubIssueReference> filed = GitHubIssues.Create("vonderborch/Niddy", token, issue);

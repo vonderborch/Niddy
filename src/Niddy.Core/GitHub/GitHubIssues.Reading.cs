@@ -19,11 +19,12 @@ public static partial class GitHubIssues
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="filter">Which issues, and their order. Null is open issues, newest first.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">
-    /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the API address, e.g.
-    /// <c>https://github.example.com/api/v3/</c> for GitHub Enterprise Server. Null uses a shared client and
-    /// <c>https://api.github.com/</c>.
+    /// The client to send with, or null for a shared one. It sends to <paramref name="options"/>'
+    /// <see cref="GitHubReadOptions.ApiAddress"/>, else to the client's <see cref="HttpClient.BaseAddress"/>, else to
+    /// <c>https://api.github.com/</c>. For GitHub Enterprise Server, set the option to e.g.
+    /// <c>https://github.example.com/api/v3/</c>.
     /// </param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>
@@ -39,7 +40,8 @@ public static partial class GitHubIssues
         ListCoreAsync(repository, filter, maxCount, options, httpClient, false, cancellationToken).AsTask();
 
     /// <summary>
-    /// A repository's issues, blocking until they're read. Otherwise the same as <see cref="ListAsync"/>; see <see cref="Create"/> for where
+    /// A repository's issues, blocking until they're read. Otherwise the same as <see cref="ListAsync"/>; see
+    /// <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
     /// the synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="ListAsync" path="/param"/>
@@ -58,7 +60,7 @@ public static partial class GitHubIssues
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="number">The issue number.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -73,7 +75,8 @@ public static partial class GitHubIssues
         GetCoreAsync(repository, number, options, httpClient, false, cancellationToken).AsTask();
 
     /// <summary>
-    /// One issue by its number, blocking until it's read. Otherwise the same as <see cref="GetAsync"/>; see <see cref="Create"/> for where
+    /// One issue by its number, blocking until it's read. Otherwise the same as <see cref="GetAsync"/>; see
+    /// <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
     /// the synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="GetAsync" path="/param"/>
@@ -97,7 +100,7 @@ public static partial class GitHubIssues
     /// </remarks>
     /// <param name="query">The search, as typed into GitHub's search box.</param>
     /// <param name="maxCount">The most to return, up to 1,000. It reads up to 100 per request.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which only finds public issues.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which only finds public issues.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>
@@ -113,7 +116,8 @@ public static partial class GitHubIssues
         SearchCoreAsync(query, maxCount, options, httpClient, false, cancellationToken).AsTask();
 
     /// <summary>
-    /// Searches issues and pull requests, blocking until it's done. Otherwise the same as <see cref="SearchAsync"/>; see <see cref="Create"/> for where
+    /// Searches issues and pull requests, blocking until it's done. Otherwise the same as <see cref="SearchAsync"/>;
+    /// see <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
     /// the synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="SearchAsync" path="/remarks"/>
@@ -133,7 +137,7 @@ public static partial class GitHubIssues
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="number">The issue or pull request number.</param>
     /// <param name="maxCount">The most to return. It reads up to 100 per request, as many pages as it needs.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>
@@ -149,7 +153,9 @@ public static partial class GitHubIssues
         ListCommentsCoreAsync(repository, number, maxCount, options, httpClient, false, cancellationToken).AsTask();
 
     /// <summary>
-    /// The comments on an issue or pull request, blocking until they're read. Otherwise the same as <see cref="ListCommentsAsync"/>; see <see cref="Create"/> for where
+    /// The comments on an issue or pull request, blocking until they're read. Otherwise the same as
+    /// <see cref="ListCommentsAsync"/>; see
+    /// <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where
     /// the synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="ListCommentsAsync" path="/param"/>
@@ -177,7 +183,7 @@ public static partial class GitHubIssues
     /// <param name="filter">Which issues, and their order. Null is open issues, newest first.</param>
     /// <param name="page">Which page, from 1.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -195,7 +201,8 @@ public static partial class GitHubIssues
 
     /// <summary>
     /// One page of a repository's issues, blocking until it's read. Otherwise the same as <see cref="ListPageAsync"/>;
-    /// see <see cref="Create"/> for where the synchronous versions work.
+    /// see <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where the
+    /// synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="ListPageAsync" path="/remarks"/>
     /// <inheritdoc cref="ListPageAsync" path="/param"/>
@@ -221,7 +228,7 @@ public static partial class GitHubIssues
     /// <param name="query">The search, as typed into GitHub's search box.</param>
     /// <param name="page">Which page, from 1. It must start within the first 1,000 results.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which only finds public issues.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which only finds public issues.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -241,7 +248,8 @@ public static partial class GitHubIssues
 
     /// <summary>
     /// One page of a search's results, blocking until it's read. Otherwise the same as <see cref="SearchPageAsync"/>;
-    /// see <see cref="Create"/> for where the synchronous versions work.
+    /// see <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where the
+    /// synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="SearchPageAsync" path="/remarks"/>
     /// <inheritdoc cref="SearchPageAsync" path="/param"/>
@@ -262,7 +270,7 @@ public static partial class GitHubIssues
     /// <param name="number">The issue or pull request number.</param>
     /// <param name="page">Which page, from 1.</param>
     /// <param name="pageSize">How many per page, 1 to 100.</param>
-    /// <param name="options">A token and a cache. Null uses no token and no cache, which works for public repositories.</param>
+    /// <param name="options">A token, the API address and a cache. Null uses no token and no cache, which works for public repositories.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="ListAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -282,7 +290,9 @@ public static partial class GitHubIssues
 
     /// <summary>
     /// One page of the comments on an issue or pull request, blocking until it's read. Otherwise the same as
-    /// <see cref="ListCommentsPageAsync"/>; see <see cref="Create"/> for where the synchronous versions work.
+    /// <see cref="ListCommentsPageAsync"/>; see
+    /// <see cref="Create(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> for where the
+    /// synchronous versions work.
     /// </summary>
     /// <inheritdoc cref="ListCommentsPageAsync" path="/param"/>
     /// <inheritdoc cref="ListCommentsPageAsync" path="/returns"/>

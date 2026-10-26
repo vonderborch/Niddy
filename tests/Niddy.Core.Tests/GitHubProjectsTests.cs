@@ -338,6 +338,18 @@ public sealed class GitHubProjectsTests : IDisposable
     }
 
     [Fact]
+    public async Task GraphQLAddress_FollowsTheApiAddressOption_OverTheClients()
+    {
+        GitHubFakeHandler handler = new(_ => Data(OwnerProject(Project(1))));
+        HttpClient client = new(handler) { BaseAddress = new Uri("https://other.example.com/api/v3/") };
+
+        await GitHubProjects.GetAsync("acme", 1, Options with { ApiAddress = new Uri("https://ghe.example.com/api/v3/") },
+            client, Token);
+
+        Assert.Equal("https://ghe.example.com/api/graphql", Assert.Single(handler.Urls));
+    }
+
+    [Fact]
     public async Task Cache_FreshResponse_IsServedWithoutARequest_ButErrorsAreNot()
     {
         bool fail = true;

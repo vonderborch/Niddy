@@ -168,6 +168,44 @@ public sealed class GitHubIssueReadingTests : IDisposable
         Assert.Equal(GitHubItemState.Open, result.Value.State);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://other.example.com/api/v3/")]
+    public async Task ApiAddress_TakesPrecedenceOverTheClients(string? clientAddress)
+    {
+        GitHubFakeHandler handler = new(_ => GitHubFakeHandler.Json(Issue(7)));
+        HttpClient client = new(handler) { BaseAddress = clientAddress is null ? null : new Uri(clientAddress) };
+        GitHubReadOptions options = new() { ApiAddress = new Uri("https://github.example.com/api/v3") };
+
+        await GitHubIssues.GetAsync("owner/repo", 7, options, client, Token);
+
+        Assert.Equal("https://github.example.com/api/v3/repos/owner/repo/issues/7", Assert.Single(handler.Urls));
+    }
+
+    [Fact]
+    public async Task ApiAddress_KeepsSeparateCachesPerServer()
+    {
+        GitHubFakeHandler handler = new(_ => GitHubFakeHandler.Json(Issue(7)));
+        HttpClient client = new(handler);
+        GitHubReadOptions cloud = new() { CacheDirectory = this._dir, CacheDuration = TimeSpan.FromHours(1) };
+        GitHubReadOptions enterprise = cloud with { ApiAddress = new Uri("https://github.example.com/api/v3/") };
+
+        await GitHubIssues.GetAsync("owner/repo", 7, cloud, client, Token);
+        await GitHubIssues.GetAsync("owner/repo", 7, enterprise, client, Token);
+        await GitHubIssues.GetAsync("owner/repo", 7, enterprise, client, Token);
+
+        Assert.Equal([Api + "issues/7", "https://github.example.com/api/v3/repos/owner/repo/issues/7"], handler.Urls);
+    }
+
+    [Theory]
+    [InlineData("api/v3/")]
+    [InlineData("ftp://github.example.com/api/v3/")]
+    public void ApiAddress_ThatIsntAbsoluteHttp_Throws(string address)
+    {
+        Assert.Throws<ArgumentException>(() => new GitHubReadOptions { ApiAddress = new Uri(address, UriKind.RelativeOrAbsolute) });
+        Assert.Throws<ArgumentException>(() => new GitHubReleaseOptions { ApiAddress = new Uri(address, UriKind.RelativeOrAbsolute) });
+    }
+
     [Fact]
     public async Task GetAsync_MissingIssue_IsNotFound()
     {

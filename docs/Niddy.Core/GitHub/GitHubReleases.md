@@ -25,7 +25,7 @@ Every call has a synchronous version. Failures come back as a [`Result`](../Resu
 | `GetLatest`, `GetByTag`, `List`, `CheckForUpdate` (both overloads), `DownloadAsset` | Synchronous versions, with the same parameters. They work where [`WebContent`'s](../Web/WebContent.md#synchronous-versions) do: not in the browser, and only with a handler that supports synchronous sends (the shared client does, the native Android and iOS handlers don't). |
 
 - **`repository`** is `owner/name`. Anything else throws `ArgumentException`.
-- **`httpClient`.** Null uses a shared client and `https://api.github.com/`. Pass your own to set a timeout, a proxy or a test handler. If it has a `BaseAddress`, that's the API address, e.g. `https://github.example.com/api/v3/` for GitHub Enterprise Server.
+- **`httpClient`.** Null uses a shared client. Pass your own to set a timeout, a proxy or a test handler. Requests go to the options' `ApiAddress`, else the client's `BaseAddress`, else `https://api.github.com/`; for GitHub Enterprise Server, set `ApiAddress` to e.g. `https://github.example.com/api/v3/`.
 - **Cancelling** `cancellationToken` throws `OperationCanceledException`. Everything else that goes wrong is a failed `Result`.
 
 ### Rate limits and the cache
@@ -106,6 +106,7 @@ A mismatch is a `ChecksumMismatch` failure that saves nothing. With none of thes
 | Property | Description |
 |---|---|
 | `string? Token` | A token for private repositories, or for the higher rate limit. A fine-grained personal access token with read-only **Contents** permission is enough. Null sends none, which works for public repositories. |
+| `Uri? ApiAddress` | The API address, for GitHub Enterprise Server, e.g. `https://github.example.com/api/v3/`. It takes precedence over the `HttpClient`'s `BaseAddress`, so one client can read from several servers. Null uses the client's `BaseAddress`, or `https://api.github.com/` without one. Setting one that isn't an absolute `http` or `https` address throws `ArgumentException`. |
 | `bool IncludePrereleases` | Whether `GetLatestAsync` and `CheckForUpdateAsync` consider prereleases. Doesn't apply to `GetByTagAsync` or `ListAsync`. |
 | `string? CacheDirectory` | A folder to cache API responses in, e.g. a folder under [`AppPaths.Cache`](../IO/AppPaths.md). Null caches nothing. |
 | `TimeSpan CacheDuration` | How long a cached response is used without asking GitHub. Defaults to an hour. `TimeSpan.Zero` always asks, which still saves rate limit through `304`s and still falls back to the cache. |

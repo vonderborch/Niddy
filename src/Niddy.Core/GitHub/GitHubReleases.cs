@@ -75,10 +75,11 @@ public static class GitHubReleases
     /// <see cref="GitHubReleaseOptions.IncludePrereleases"/>, the highest version among the 30 most recent releases.
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
-    /// <param name="options">A token, prereleases, a cache. Null uses the defaults: no token, no prereleases, no cache.</param>
+    /// <param name="options">A token, the API address, prereleases, a cache. Null uses the defaults: no token, no prereleases, no cache.</param>
     /// <param name="httpClient">
-    /// The client to send with. If it has a <see cref="HttpClient.BaseAddress"/>, that's the API address. Null uses a
-    /// shared client and <c>https://api.github.com/</c>.
+    /// The client to send with, or null for a shared one. It sends to <paramref name="options"/>'
+    /// <see cref="GitHubReleaseOptions.ApiAddress"/>, else to the client's <see cref="HttpClient.BaseAddress"/>, else
+    /// to <c>https://api.github.com/</c>.
     /// </param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -106,7 +107,7 @@ public static class GitHubReleases
     /// <summary>The release with the tag <paramref name="tag"/>, e.g. <c>v1.2.0</c>.</summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="tag">The release's tag, exactly as it is on GitHub.</param>
-    /// <param name="options">A token and a cache. <see cref="GitHubReleaseOptions.IncludePrereleases"/> doesn't apply. Null uses the defaults.</param>
+    /// <param name="options">A token, the API address and a cache. <see cref="GitHubReleaseOptions.IncludePrereleases"/> doesn't apply. Null uses the defaults.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="GetLatestAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The release, or a failure whose <see cref="Error.Code"/> is one of <see cref="ErrorCodes"/>.</returns>
@@ -135,7 +136,7 @@ public static class GitHubReleases
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="maxCount">The most releases to return.</param>
-    /// <param name="options">A token and a cache. <see cref="GitHubReleaseOptions.IncludePrereleases"/> doesn't apply. Null uses the defaults.</param>
+    /// <param name="options">A token, the API address and a cache. <see cref="GitHubReleaseOptions.IncludePrereleases"/> doesn't apply. Null uses the defaults.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="GetLatestAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the requests.</param>
     /// <returns>The releases, possibly none, or a failure whose <see cref="Error.Code"/> is one of <see cref="ErrorCodes"/>.</returns>
@@ -170,7 +171,7 @@ public static class GitHubReleases
     /// </remarks>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="currentVersion">The running version, e.g. <c>1.4.0</c>, <c>v1.4.0</c> or <c>1.5.0-beta.1</c>.</param>
-    /// <param name="options">A token, prereleases, a cache. Null uses the defaults.</param>
+    /// <param name="options">A token, the API address, prereleases, a cache. Null uses the defaults.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="GetLatestAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>
@@ -191,7 +192,7 @@ public static class GitHubReleases
     /// </summary>
     /// <param name="repository">The repository, as <c>owner/name</c>.</param>
     /// <param name="currentVersion">The running version.</param>
-    /// <param name="options">A token, prereleases, a cache. Null uses the defaults.</param>
+    /// <param name="options">A token, the API address, prereleases, a cache. Null uses the defaults.</param>
     /// <param name="httpClient">The client to send with, as for <see cref="GetLatestAsync"/>.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <inheritdoc cref="CheckForUpdateAsync(string, string, GitHubReleaseOptions?, HttpClient?, CancellationToken)" path="/returns"/>
@@ -558,7 +559,7 @@ public static class GitHubReleases
         HttpClient? httpClient, string notFound, string display, bool sync, CancellationToken cancellationToken)
     {
         HttpClient client = SharedHttp.ClientFor(httpClient, sync);
-        Uri address = GitHubApi.ApiAddress(client, relative);
+        Uri address = GitHubApi.ApiAddress(client, options.ApiAddress, relative);
         GitHubResponse response;
         try
         {

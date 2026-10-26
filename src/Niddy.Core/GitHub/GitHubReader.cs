@@ -216,8 +216,8 @@ internal static partial class GitHubReader
         GitHubResponse response;
         try
         {
-            response = await GitHubApi.GraphQLAsync(client, query, variables, options.Token, options.CacheDirectory,
-                options.CacheDuration, sync, cancellationToken).ConfigureAwait(false);
+            response = await GitHubApi.GraphQLAsync(client, options.ApiAddress, query, variables, options.Token,
+                options.CacheDirectory, options.CacheDuration, sync, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (GitHubApi.ToNetworkError(ex, GitHubIssues.ErrorCodes.Network, cancellationToken) is { } error)
         {
@@ -428,7 +428,7 @@ internal static partial class GitHubReader
         CancellationToken cancellationToken)
     {
         HttpClient client = SharedHttp.ClientFor(httpClient, sync);
-        Uri address = GitHubApi.ApiAddress(client, relative);
+        Uri address = GitHubApi.ApiAddress(client, options.ApiAddress, relative);
         GitHubResponse response;
         try
         {

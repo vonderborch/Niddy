@@ -1,7 +1,9 @@
 namespace Niddy.Core.GitHub;
 
 /// <summary>
-/// An issue that <see cref="GitHubIssues.CreateAsync"/> created, or, for an issue with a
+/// An issue that
+/// <see cref="GitHubIssues.CreateAsync(string, string, GitHubIssue, HttpClient?, Uri?, CancellationToken)"/> created,
+/// or, for an issue with a
 /// <see cref="GitHubIssue.Fingerprint"/>, the open issue it found and added the report to as a comment.
 /// </summary>
 /// <param name="Number">The issue number, e.g. <c>42</c> for <c>#42</c>.</param>

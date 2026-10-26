@@ -10,12 +10,13 @@ Every method does what the matching `GitHubIssues` method does, including [addin
 
 | Member | Description |
 |---|---|
-| `GitHubIssueClient(string repository, string? token = null, HttpClient? httpClient = null)` | `repository` is `owner/name`; it throws `ArgumentException` otherwise. `token` is as for [`CreateAsync`](GitHubIssues.md#tokens-and-privacy), or null to only use the browser form; a blank one counts as null. `httpClient` is as for `CreateAsync`: null uses a shared client, and its `BaseAddress` is the API address for GitHub Enterprise Server. |
+| `GitHubIssueClient(string repository, string? token = null, HttpClient? httpClient = null)` | `repository` is `owner/name`; it throws `ArgumentException` otherwise. `token` is as for [`CreateAsync`](GitHubIssues.md#tokens-and-privacy), or null to only use the browser form; a blank one counts as null. `httpClient` is as for `CreateAsync`: null uses a shared client, and its `BaseAddress` is the API address unless `ApiAddress` is set. |
 | `string Repository` | `owner/name`, trimmed. |
 | `bool HasToken` | Whether there's a token, so `CreateAsync` can be used. |
 | `HttpClient? HttpClient` | The client given to the constructor. |
 | `GitHubIssueReporter? Reporter { init; }` | The reporter for issues that don't set their own. An issue's own `Reporter` wins. |
 | `Uri? BaseAddress { init; }` | The GitHub site for the browser form, for GitHub Enterprise Server. Null means `https://github.com/`. |
+| `Uri? ApiAddress { init; }` | The API address, for GitHub Enterprise Server, e.g. `https://github.example.com/api/v3/`. Null uses `HttpClient`'s `BaseAddress`, or `https://api.github.com/` without one. It takes precedence over the client's, so clients for several servers can share one `HttpClient`. Set `BaseAddress` too, for the form. Setting an address that isn't an absolute `http` or `https` one throws `ArgumentException`. |
 | `Action<string>? OpenUrl { init; }` | Opens the form's URL, for `CreateOrOpenAsync` and `OpenInBrowser`. Null uses [`UrlLauncher.Open`](../Web/UrlLauncher.md), which isn't supported on Android, watchOS or WASI. In an Avalonia app, set it to `url => _ = UriLauncher.TryLaunchAsync(control, url)`. |
 | `Task<Result<GitHubIssueReference>> CreateAsync(GitHubIssue issue, CancellationToken cancellationToken = default)` | [`GitHubIssues.CreateAsync`](GitHubIssues.md#api). Throws `InvalidOperationException` when there's no token. |
 | `Task<Result<GitHubIssueSubmission>> CreateOrOpenAsync(GitHubIssue issue, CancellationToken cancellationToken = default)` | [`GitHubIssues.CreateOrOpenAsync`](GitHubIssues.md#createoropenasync): the API if there's a token, the form with `OpenUrl` otherwise or when the API refuses. |
